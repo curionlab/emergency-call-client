@@ -401,34 +401,74 @@ async function initSender() {
     document.getElementById('senderScreen').classList.remove('hidden');
     
     log('発信者モードを初期化中...');
-    
-    // PeerJS初期化（ICEサーバー設定を適用: 現状STUNのみ）
-    const peerId = 'sender_' + Date.now();
-    const iceServers = await getIceServers();
-    peer = new Peer(peerId, {
-        host: '0.peerjs.com',
-        secure: true,
-        port: 443,
-        config: { iceServers }
-    });
 
-    
-    peer.on('open', (id) => {
-        log(`PeerJS接続成功: ${id}`);
-        document.getElementById('senderStatus').textContent = '準備完了';
-        document.getElementById('senderStatus').className = 'status status-success';
-        document.getElementById('callBtn').disabled = false;
-    });
-    
-    peer.on('error', (err) => {
-        log(`PeerJSエラー: ${err.message}`, 'error');
-    });
-    
-    peer.on('call', (call) => {
-        log('着信を受信（受信者が接続）');
-        answerIncomingCall(call);
-    });
+    // PeerJS接続を管理する関数を定義
+    function connectToPeerJS() {
+        if (peer && !peer.destroyed) {
+            log('既存のPeer接続を破棄します。');
+            peer.destroy();
+        }
+
+        const peerId = 'sender_' + Date.now();
+        log(`PeerJSサーバーに接続試行... ID: ${peerId}`);
+        document.getElementById('senderStatus').textContent = 'シグナリングサーバー接続中...';
+        document.getElementById('senderStatus').className = 'status status-warning';
+        document.getElementById('callBtn').disabled = true;
+
+        // PeerJS初期化（ハートビートと再接続ロジックを追加）
+        peer = new Peer(peerId, {
+            host: '0.peerjs.com',
+            secure: true,
+            port: 443,
+            pingInterval: 5000 // 5秒ごとにハートビートを送信して接続を維持
+        });
+        
+        peer.on('open', (id) => {
+            log(`✅ PeerJS接続成功: ${id}`);
+            document.getElementById('senderStatus').textContent = '準備完了';
+            document.getElementById('senderStatus').className = 'status status-success';
+            document.getElementById('callBtn').disabled = false;
+        });
+        
+        // サーバーとの接続が一時的に切断された場合
+        peer.on('disconnected', () => {
+            log('PeerJSサーバーとの接続が切れました。自動再接続を試みます...', 'warning');
+            document.getElementById('senderStatus').textContent = '再接続中...';
+            document.getElementById('senderStatus').className = 'status status-warning';
+            // PeerJSは内部で自動的に再接続を試みます
+        });
+
+        // 接続が完全に閉じた場合（destroyされた時など）
+        peer.on('close', () => {
+            log('PeerJS接続が完全に閉じました。', 'error');
+        });
+
+        // 何らかのエラーが発生した場合
+        peer.on('error', (err) => {
+            log(`PeerJSエラー: ${err.message}`, 'error');
+            document.getElementById('senderStatus').textContent = '接続エラー';
+            document.getElementById('senderStatus').className = 'status status-error';
+            
+            // エラータイプによって再接続を試みる
+            if (err.type === 'network' || err.type === 'server-error') {
+                log('接続エラーのため、5秒後に再接続します。');
+                setTimeout(connectToPeerJS, 5000);
+            } else if (err.type !== 'peer-unavailable') {
+                 log('回復不能なエラーが発生しました。ページの再読み込みが必要な場合があります。');
+            }
+        });
+        
+        // 着信処理は変わりません
+        peer.on('call', (call) => {
+            log('着信を受信（受信者が接続）');
+            answerIncomingCall(call);
+        });
+    }
+
+    // 初回の接続を開始
+    connectToPeerJS();
 }
+
 
 // 受信者初期化
 async function initReceiver() {
