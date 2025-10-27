@@ -526,7 +526,7 @@ async function subscribeToPush() {
         const registration = await navigator.serviceWorker.ready;
         
         // VAPIDキー（実際の実装ではサーバーから取得）
-        const vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+        const vapidPublicKey = 'BDOUeyD14YynH1b_rvrpaU611y2CMUFqj3plJWedwDK5G9ZjWsYWDtsm2oxTJAkikxG2RSi7MtzBMlNuIrO6UPo';
         
         const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
