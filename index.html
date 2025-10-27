@@ -389,7 +389,8 @@ function proceedToSetup() {
 
 // 発信者初期化
 async function initSender() {
-    config.receiverId = document.getElementById('receiverId').value;
+    config.re
+    ceiverId = document.getElementById('receiverId').value;
     config.serverUrl = document.getElementById('serverUrl').value;
     
     if (!config.receiverId || !config.serverUrl) {
@@ -523,7 +524,6 @@ async function registerServiceWorker() {
 }
 
 
-// プッシュ通知購読
 // プッシュ通知購読
 async function subscribeToPush() {
     try {
@@ -776,28 +776,45 @@ function toggleVideo(mode) {
 }
 
 // 通話終了
+// 通話終了
 function endCall(mode) {
     log('通話を終了します...');
-    
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-    }
-    
+
+    // 1. PeerJSの接続を閉じる
     if (currentCall) {
         currentCall.close();
         currentCall = null;
+        log('PeerJSの通話接続を閉じました。');
     }
-    
+
+    // 2. ローカルのメディアストリーム（カメラ・マイク）を完全に停止
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            track.stop(); // 各トラックを停止
+        });
+        localStream = null;
+        log('ローカルのメディアストリームを停止しました。');
+    }
+
+    // 3. ビデオ要素のソースをクリア（推奨）
+    const localVideoEl = document.getElementById(`${mode}LocalVideo`);
+    const remoteVideoEl = document.getElementById(`${mode}RemoteVideo`);
+    if (localVideoEl) localVideoEl.srcObject = null;
+    if (remoteVideoEl) remoteVideoEl.srcObject = null;
+    log('ビデオ要素をクリアしました。');
+
+    // 4. UIをリセット
     if (mode === 'sender') {
         document.getElementById('senderCallArea').classList.add('hidden');
         document.getElementById('callBtn').disabled = false;
     } else {
         document.getElementById('receiverCallArea').classList.add('hidden');
+        // 必要に応じて受信者側のUIもリセット
     }
     
-    log('通話終了');
+    log('✅ 通話が正常に終了しました。');
 }
+
 
 // ICEサーバー設定の取得フック（現状はSTUNのみ返却）
 async function getIceServers() {
