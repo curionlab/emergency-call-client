@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>緊急コールシステム</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <style>
 :root {
   --color-cream-50: rgba(252, 252, 249, 1);
@@ -487,8 +491,20 @@ async function subscribeToPush() {
     try {
         log('プッシュ通知を購読中...');
         
-        // 通知権限リクエスト
+        // 機能判定（iOS 16.4+ のホーム画面Webアプリ等が要件）
+        if (!('serviceWorker' in navigator)) {
+            throw new Error('Service Worker非対応環境です（対応ブラウザ/HTTPSが必要）');
+        }
+        if (!('PushManager' in window)) {
+            throw new Error('Push API非対応環境です（iOSは16.4+のホーム画面Webアプリが必要）');
+        }
+        if (typeof Notification === 'undefined') {
+            throw new Error('Notification API非対応です。iOSは16.4以上でホーム画面に追加後、再起動してください。');
+        }
+
+        // 通知権限リクエスト（必ずユーザー操作起点で実行）
         const permission = await Notification.requestPermission();
+
         if (permission !== 'granted') {
             throw new Error('通知権限が拒否されました');
         }
