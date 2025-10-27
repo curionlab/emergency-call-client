@@ -451,9 +451,6 @@ async function initReceiver() {
     
     log('受信者モードを初期化中...');
     
-    // Service Worker登録
-    await registerServiceWorker();
-    
     // プッシュ通知購読
     await subscribeToPush();
     
@@ -487,29 +484,35 @@ async function registerServiceWorker() {
 
 
 // プッシュ通知購読
+// プッシュ通知購読
 async function subscribeToPush() {
     try {
         log('プッシュ通知を購読中...');
-        
-        // 機能判定（iOS 16.4+ のホーム画面Webアプリ等が要件）
+
+        // 機能判定（iOSは特に厳しい要件があるため詳細にチェック）
         if (!('serviceWorker' in navigator)) {
-            throw new Error('Service Worker非対応環境です（対応ブラウザ/HTTPSが必要）');
+            throw new Error('Service Worker非対応です。');
         }
         if (!('PushManager' in window)) {
+            // iOSでホーム画面から起動されているかどうかのヒント
+            const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+            if (/iP(ad|hone|od)/.test(navigator.userAgent) && !isStandalone) {
+                 throw new Error('Push API非対応です。iOSでは、まずホーム画面に追加してから、そのアイコンからアプリを起動してください。');
+            }
             throw new Error('Push API非対応環境です（iOSは16.4+のホーム画面Webアプリが必要）');
         }
         if (typeof Notification === 'undefined') {
             throw new Error('Notification API非対応です。iOSは16.4以上でホーム画面に追加後、再起動してください。');
         }
-
-        // 通知権限リクエスト（必ずユーザー操作起点で実行）
+        
+        // 通知権限リクエスト
         const permission = await Notification.requestPermission();
-
         if (permission !== 'granted') {
             throw new Error('通知権限が拒否されました');
         }
         
         const registration = await navigator.serviceWorker.ready;
+
         
         // VAPIDキー（実際の実装ではサーバーから取得）
         const vapidPublicKey = '__REDACTED_VAPID_PUBLIC_KEY__';
@@ -775,6 +778,17 @@ async function getIceServers() {
 // 初期化
 log('緊急コールシステムが読み込まれました');
 
+// ページ読み込み時にService Workerを登録する
+// これにより、PWAとしてホーム画面に追加される前にブラウザがプッシュ機能を認識できる
+window.addEventListener('load', () => {
+    if ('serviceWorker' in navigator) {
+        registerServiceWorker().catch(err => {
+            log('初期Service Worker登録エラー: ' + err.message, 'error');
+        });
+    } else {
+        log('Service Worker非対応ブラウザです', 'warning');
+    }
+});
     </script>
 </body>
 </html>
