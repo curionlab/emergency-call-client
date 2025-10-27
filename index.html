@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>緊急コールシステム</title>
+    <style>
+:root {
+  --color-cream-50: rgba(252, 252, 249, 1);
+  --color-cream-100: rgba(255, 255, 253, 1);
+  --color-gray-200: rgba(245, 245, 245, 1);
+  --color-slate-500: rgba(98, 108, 113, 1);
+  --color-brown-600: rgba(94, 82, 64, 1);
+  --color-charcoal-700: rgba(31, 33, 33, 1);
+  --color-charcoal-800: rgba(38, 40, 40, 1);
+  --color-slate-900: rgba(19, 52, 59, 1);
+  --color-teal-300: rgba(50, 184, 198, 1);
+  --color-teal-500: rgba(33, 128, 141, 1);
+  --color-teal-600: rgba(29, 116, 128, 1);
+  --color-red-400: rgba(255, 84, 89, 1);
+  --color-red-500: rgba(192, 21, 47, 1);
+  --color-background: var(--color-cream-50);
+  --color-surface: var(--color-cream-100);
+  --color-text: var(--color-slate-900);
+  --color-primary: var(--color-teal-500);
+  --color-primary-hover: var(--color-teal-600);
+  --color-border: rgba(94, 82, 64, 0.2);
+  --color-card-border: rgba(94, 82, 64, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: var(--color-charcoal-700);
+    --color-surface: var(--color-charcoal-800);
+    --color-text: var(--color-gray-200);
+    --color-primary: var(--color-teal-300);
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text);
+  line-height: 1.6;
+  padding: 20px;
+}
+
+.container { max-width: 800px; margin: 0 auto; }
+.card {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+h2 { margin-bottom: 16px; }
+h3 { margin-bottom: 12px; font-size: 18px; }
+
+.btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.emergency-btn {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  font-size: 28px;
+  background: linear-gradient(135deg, var(--color-red-400), var(--color-red-500));
+  color: white;
+  border: 4px solid white;
+  box-shadow: 0 8px 24px rgba(192, 21, 47, 0.3);
+  margin: 30px auto;
+  display: block;
+}
+
+.emergency-btn:hover:not(:disabled) { transform: scale(1.05); }
+
+.status {
+  padding: 8px 16px;
+  border-radius: 20px;
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.status-success { background: rgba(33, 128, 141, 0.15); color: var(--color-primary); }
+.status-warning { background: rgba(168, 75, 47, 0.15); color: rgba(168, 75, 47, 1); }
+.status-error { background: rgba(192, 21, 47, 0.15); color: var(--color-red-500); }
+
+input, select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-top: 8px;
+  font-size: 16px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 16px;
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 20px 0;
+}
+
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-controls {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+}
+
+.control-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.control-btn:hover { background: rgba(0,0,0,0.8); }
+.control-btn.end { background: var(--color-red-500); }
+
+.log-box {
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.log-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.hidden { display: none !important; }
+
+.info-box {
+  background: rgba(33, 128, 141, 0.1);
+  padding: 16px;
+  border-radius: 8px;
+  margin: 16px 0;
+  border-left: 4px solid var(--color-primary);
+}
+
+.code-box {
+  background: rgba(0,0,0,0.05);
+  padding: 12px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  margin-top: 8px;
+}
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <!-- セットアップ画面 -->
+        <div id="setupScreen">
+            <div class="card">
+                <h2>🚨 緊急コールシステム</h2>
+                
+                <div class="info-box">
+                    <strong>システムの特徴</strong>
+                    <ul style="margin-top: 8px; margin-left: 20px;">
+                        <li>✓ あなたの操作でのみ通知発動</li>
+                        <li>✓ VAPID標準プロトコル使用（iOS Safari対応）</li>
+                        <li>✓ PeerJS WebRTCシグナリング</li>
+                        <li>✓ 通話セッションID自動生成</li>
+                        <li>✓ 認証コードによる受信者登録</li>
+                        <li>✓ オートアンサー機能</li>
+                    </ul>
+                </div>
+
+                <label>ユーザータイプ:</label>
+                <select id="userType">
+                    <option value="">選択してください</option>
+                    <option value="sender">発信者（緊急ボタンを押す側）</option>
+                    <option value="receiver">受信者（通知を受け取る側）</option>
+                </select>
+
+                <button class="btn btn-primary" onclick="proceedToSetup()">次へ</button>
+            </div>
+        </div>
+
+        <!-- 発信者セットアップ -->
+        <div id="senderSetup" class="hidden">
+            <div class="card">
+                <h2>📞 発信者セットアップ</h2>
+                
+                <label>受信者ID:</label>
+                <input type="text" id="receiverId" placeholder="例: parent_A">
+
+                <label>サーバーURL（通知送信用）:</label>
+                <input type="text" id="serverUrl" placeholder="https://your-server.onrender.com" value="https://emergency-call-demo.onrender.com">
+
+                <div class="info-box" style="margin-top: 20px;">
+                    <strong>💡 ヒント</strong>
+                    <p style="margin-top: 8px;">受信者IDは、受信者が登録時に使用したIDと同じものを入力してください。</p>
+                </div>
+
+                <button class="btn btn-primary" onclick="initSender()">発信者モード開始</button>
+            </div>
+        </div>
+
+        <!-- 受信者セットアップ -->
+        <div id="receiverSetup" class="hidden">
+            <div class="card">
+                <h2>📱 受信者セットアップ</h2>
+                
+                <label>受信者ID（あなたのID）:</label>
+                <input type="text" id="myReceiverId" placeholder="例: parent_A">
+
+                <label>認証コード（発信者から受け取った6桁）:</label>
+                <input type="text" id="authCode" placeholder="例: 582937" maxlength="6">
+
+                <label>サーバーURL:</label>
+                <input type="text" id="receiverServerUrl" placeholder="https://your-server.onrender.com" value="https://emergency-call-demo.onrender.com">
+
+                <div class="info-box" style="margin-top: 20px;">
+                    <strong>🔒 セキュリティ</strong>
+                    <p style="margin-top: 8px;">認証コードは発信者から別の安全な方法（電話など）で受け取ってください。このコードにより、あなただけがこのIDに登録できます。</p>
+                </div>
+
+                <button class="btn btn-primary" onclick="initReceiver()">受信者モード開始</button>
+            </div>
+        </div>
+
+        <!-- 発信者画面 -->
+        <div id="senderScreen" class="hidden">
+            <div class="card">
+                <h2>📞 発信者モード</h2>
+                <div id="senderStatus" class="status status-warning">初期化中...</div>
+                
+                <button class="emergency-btn" id="callBtn" onclick="makeEmergencyCall()" disabled>
+                    緊急<br>コール
+                </button>
+
+                <div id="senderCallArea" class="hidden">
+                    <div class="video-container">
+                        <video id="senderLocalVideo" autoplay muted playsinline></video>
+                        <video id="senderRemoteVideo" autoplay playsinline style="position: absolute; top: 0; left: 0;"></video>
+                        <div class="video-controls">
+                            <button class="control-btn" onclick="toggleMute('sender')">🎤</button>
+                            <button class="control-btn end" onclick="endCall('sender')">📞</button>
+                            <button class="control-btn" onclick="toggleVideo('sender')">📹</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 受信者画面 -->
+        <div id="receiverScreen" class="hidden">
+            <div class="card">
+                <h2>📱 受信者モード</h2>
+                <div id="receiverStatus" class="status status-warning">初期化中...</div>
+                
+                <div id="subscriptionInfo" class="hidden">
+                    <h3>登録情報</h3>
+                    <p>プッシュ通知の購読が完了しました。</p>
+                    <div class="code-box" id="subscriptionData"></div>
+                </div>
+
+                <div id="receiverCallArea" class="hidden">
+                    <div class="video-container">
+                        <video id="receiverRemoteVideo" autoplay playsinline></video>
+                        <video id="receiverLocalVideo" autoplay muted playsinline style="position: absolute; bottom: 20px; right: 20px; width: 150px; border: 2px solid white; border-radius: 8px;"></video>
+                        <div class="video-controls">
+                            <button class="control-btn" onclick="toggleMute('receiver')">🎤</button>
+                            <button class="control-btn end" onclick="endCall('receiver')">📞</button>
+                            <button class="control-btn" onclick="toggleVideo('receiver')">📹</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ログ -->
+        <div class="card">
+            <h3>📋 システムログ</h3>
+            <div class="log-box" id="logBox"></div>
+        </div>
+    </div>
+
+    <!-- PeerJS -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+    <script>
+// グローバル変数
+let userType = null;
+let config = {
+    receiverId: null,
+    serverUrl: null,
+    authCode: null
+};
+let peer = null;
+let currentCall = null;
+let localStream = null;
+let pushSubscription = null;
+let sessionId = null;
+
+// ログ関数
+function log(msg, type = 'info') {
+    const logBox = document.getElementById('logBox');
+    const time = new Date().toLocaleTimeString('ja-JP');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.textContent = `[${time}] ${msg}`;
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
+    console.log(`[${type}] ${msg}`);
+}
+
+// セットアップ進行
+function proceedToSetup() {
+    const type = document.getElementById('userType').value;
+    if (!type) {
+        alert('ユーザータイプを選択してください');
+        return;
+    }
+    
+    userType = type;
+    document.getElementById('setupScreen').classList.add('hidden');
+    
+    if (type === 'sender') {
+        document.getElementById('senderSetup').classList.remove('hidden');
+    } else {
+        document.getElementById('receiverSetup').classList.remove('hidden');
+    }
+}
+
+// 発信者初期化
+async function initSender() {
+    config.receiverId = document.getElementById('receiverId').value;
+    config.serverUrl = document.getElementById('serverUrl').value;
+    
+    if (!config.receiverId || !config.serverUrl) {
+        alert('すべての項目を入力してください');
+        return;
+    }
+    
+    document.getElementById('senderSetup').classList.add('hidden');
+    document.getElementById('senderScreen').classList.remove('hidden');
+    
+    log('発信者モードを初期化中...');
+    
+    // PeerJS初期化（ICEサーバー設定を適用: 現状STUNのみ）
+    const peerId = 'sender_' + Date.now();
+    const iceServers = await getIceServers();
+    peer = new Peer(peerId, {
+        host: '0.peerjs.com',
+        secure: true,
+        port: 443,
+        config: { iceServers }
+    });
+
+    
+    peer.on('open', (id) => {
+        log(`PeerJS接続成功: ${id}`);
+        document.getElementById('senderStatus').textContent = '準備完了';
+        document.getElementById('senderStatus').className = 'status status-success';
+        document.getElementById('callBtn').disabled = false;
+    });
+    
+    peer.on('error', (err) => {
+        log(`PeerJSエラー: ${err.message}`, 'error');
+    });
+    
+    peer.on('call', (call) => {
+        log('着信を受信（受信者が接続）');
+        answerIncomingCall(call);
+    });
+}
+
+// 受信者初期化
+async function initReceiver() {
+    config.receiverId = document.getElementById('myReceiverId').value;
+    config.authCode = document.getElementById('authCode').value;
+    config.serverUrl = document.getElementById('receiverServerUrl').value;
+    
+    if (!config.receiverId || !config.authCode || !config.serverUrl) {
+        alert('すべての項目を入力してください');
+        return;
+    }
+    
+    if (config.authCode.length !== 6) {
+        alert('認証コードは6桁で入力してください');
+        return;
+    }
+    
+    document.getElementById('receiverSetup').classList.add('hidden');
+    document.getElementById('receiverScreen').classList.remove('hidden');
+    
+    log('受信者モードを初期化中...');
+    
+    // Service Worker登録
+    await registerServiceWorker();
+    
+    // プッシュ通知購読
+    await subscribeToPush();
+    
+    // URLパラメータから自動応答チェック
+    checkAutoAnswer();
+}
+
+// Service Worker登録
+async function registerServiceWorker() {
+    try {
+        log('Service Workerを登録中...');
+        
+        const swCode = `
+            self.addEventListener('push', function(event) {
+                console.log('Push received:', event);
+                const data = event.data ? event.data.json() : {};
+                
+                const options = {
+                    body: data.body || '緊急通話が開始されました',
+                    icon: '/icon.png',
+                    badge: '/badge.png',
+                    vibrate: [200, 100, 200, 100, 200],
+                    tag: 'emergency-call',
+                    requireInteraction: true,
+                    data: {
+                        sessionId: data.sessionId,
+                        senderId: data.senderId,
+                        url: data.url || window.location.origin
+                    }
+                };
+                
+                event.waitUntil(
+                    self.registration.showNotification(data.title || '🚨 緊急コール', options)
+                );
+            });
+            
+            self.addEventListener('notificationclick', function(event) {
+                console.log('Notification clicked');
+                event.notification.close();
+                
+                const sessionId = event.notification.data.sessionId;
+                const url = event.notification.data.url + '?autoAnswer=true&sessionId=' + sessionId;
+                
+                event.waitUntil(
+                    clients.openWindow(url)
+                );
+            });
+        `;
+        
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+        const registration = await navigator.serviceWorker.register(swUrl);
+        
+        log('Service Worker登録完了');
+        return registration;
+        
+    } catch (error) {
+        log(`Service Workerエラー: ${error.message}`, 'error');
+        throw error;
+    }
+}
+
+// プッシュ通知購読
+async function subscribeToPush() {
+    try {
+        log('プッシュ通知を購読中...');
+        
+        // 通知権限リクエスト
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            throw new Error('通知権限が拒否されました');
+        }
+        
+        const registration = await navigator.serviceWorker.ready;
+        
+        // VAPIDキー（実際の実装ではサーバーから取得）
+        const vapidPublicKey = '__REDACTED_VAPID_PUBLIC_KEY__';
+        
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        });
+        
+        pushSubscription = subscription;
+        log('プッシュ購読完了');
+        
+        // サーバーに登録
+        await registerToServer(subscription);
+        
+    } catch (error) {
+        log(`プッシュ購読エラー: ${error.message}`, 'error');
+    }
+}
+
+// サーバーに購読情報を登録
+async function registerToServer(subscription) {
+    try {
+        log('サーバーに登録中...');
+        
+        const response = await fetch(`${config.serverUrl}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                receiverId: config.receiverId,
+                authCode: config.authCode,
+                subscription: subscription
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            log('✅ サーバー登録成功', 'success');
+            document.getElementById('receiverStatus').textContent = '通知待機中';
+            document.getElementById('receiverStatus').className = 'status status-success';
+            
+            document.getElementById('subscriptionInfo').classList.remove('hidden');
+            document.getElementById('subscriptionData').textContent = 
+                `受信者ID: ${config.receiverId}\n登録日時: ${new Date().toLocaleString('ja-JP')}`;
+        } else {
+            throw new Error(result.error || '登録失敗');
+        }
+        
+    } catch (error) {
+        log(`サーバー登録エラー: ${error.message}`, 'error');
+        alert('登録に失敗しました。認証コードを確認してください。');
+    }
+}
+
+// Base64変換
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+// 緊急コール発信
+async function makeEmergencyCall() {
+    try {
+        log('緊急コールを開始...');
+        document.getElementById('callBtn').disabled = true;
+        
+        // セッションID生成
+        sessionId = 'emergency_' + Date.now();
+        log(`セッションID: ${sessionId}`);
+        
+        // メディア取得
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+        });
+        
+        log('カメラ・マイクにアクセス成功');
+        document.getElementById('senderLocalVideo').srcObject = localStream;
+        document.getElementById('senderCallArea').classList.remove('hidden');
+        
+        // プッシュ通知送信
+        await sendPushNotification();
+        
+        // PeerJS通話待機（受信者からの接続を待つ）
+        log('受信者の接続を待機中...');
+        
+    } catch (error) {
+        log(`発信エラー: ${error.message}`, 'error');
+        document.getElementById('callBtn').disabled = false;
+    }
+}
+
+// プッシュ通知送信
+async function sendPushNotification() {
+    try {
+        log('プッシュ通知を送信中...');
+        
+        const response = await fetch(`${config.serverUrl}/send-notification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                receiverId: config.receiverId,
+                sessionId: sessionId,
+                senderId: peer.id,
+                title: '🚨 緊急コール',
+                body: '緊急通話が開始されました。タップして応答してください。'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            log('✅ プッシュ通知送信成功', 'success');
+        } else {
+            throw new Error(result.error || '通知送信失敗');
+        }
+        
+    } catch (error) {
+        log(`通知送信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 自動応答チェック
+function checkAutoAnswer() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('autoAnswer') === 'true') {
+        const sessionId = urlParams.get('sessionId');
+        log(`自動応答モード: ${sessionId}`);
+        setTimeout(() => autoAnswerCall(sessionId), 1000);
+    }
+}
+
+// 自動応答
+async function autoAnswerCall(sessionId) {
+    try {
+        log('自動応答を開始...');
+        
+        // メディア取得
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+        });
+        
+        document.getElementById('receiverLocalVideo').srcObject = localStream;
+        document.getElementById('receiverCallArea').classList.remove('hidden');
+        
+        log('カメラ・マイクにアクセス成功');
+        
+        // PeerJS接続（発信者に接続）
+        // 実際の実装では、sessionIdからsenderIdを取得
+        log('発信者に接続中...');
+        
+        // デモ用：実際はサーバーからsenderIdを取得
+        const senderId = 'sender_' + sessionId.split('_')[1];
+        
+        const iceServers = await getIceServers();
+        const receiverPeer = new Peer('receiver_' + Date.now(), {
+            host: '0.peerjs.com',
+            secure: true,
+            port: 443,
+            config: { iceServers }
+        });
+
+        
+        receiverPeer.on('open', () => {
+            log('PeerJS接続完了、発信者を呼び出し中...');
+            const call = receiverPeer.call(senderId, localStream);
+            currentCall = call;
+            
+            call.on('stream', (remoteStream) => {
+                log('発信者の映像を受信');
+                document.getElementById('receiverRemoteVideo').srcObject = remoteStream;
+            });
+        });
+        
+    } catch (error) {
+        log(`自動応答エラー: ${error.message}`, 'error');
+    }
+}
+
+// 着信応答（発信者側）
+function answerIncomingCall(call) {
+    currentCall = call;
+    
+    call.answer(localStream);
+    
+    call.on('stream', (remoteStream) => {
+        log('受信者の映像を受信');
+        document.getElementById('senderRemoteVideo').srcObject = remoteStream;
+    });
+    
+    call.on('close', () => {
+        log('通話が終了しました');
+        endCall('sender');
+    });
+}
+
+// ミュート切り替え
+function toggleMute(mode) {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        audioTrack.enabled = !audioTrack.enabled;
+        log(audioTrack.enabled ? 'マイクON' : 'マイクOFF');
+    }
+}
+
+// ビデオ切り替え
+function toggleVideo(mode) {
+    if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        videoTrack.enabled = !videoTrack.enabled;
+        log(videoTrack.enabled ? 'カメラON' : 'カメラOFF');
+    }
+}
+
+// 通話終了
+function endCall(mode) {
+    log('通話を終了します...');
+    
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    
+    if (currentCall) {
+        currentCall.close();
+        currentCall = null;
+    }
+    
+    if (mode === 'sender') {
+        document.getElementById('senderCallArea').classList.add('hidden');
+        document.getElementById('callBtn').disabled = false;
+    } else {
+        document.getElementById('receiverCallArea').classList.add('hidden');
+    }
+    
+    log('通話終了');
+}
+
+// ICEサーバー設定の取得フック（現状はSTUNのみ返却）
+async function getIceServers() {
+    try {
+        // 将来: サーバの /ice-config から取得（APIキー等で保護）
+        // const res = await fetch(`${config.serverUrl}/ice-config`, { headers: { 'X-API-Key': '...' }});
+        // const data = await res.json();
+        // return data.iceServers;
+
+        // 現在はSTUNのみ（IPv6前提のシンプル構成）
+        return [{ urls: 'stun:stun.l.google.com:19302' }];
+    } catch (e) {
+        log(`ICE設定取得エラー: ${e.message}`, 'error');
+        return [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
+}
+
+// 初期化
+log('緊急コールシステムが読み込まれました');
+
+    </script>
+</body>
+</html>
