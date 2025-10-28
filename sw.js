@@ -44,6 +44,7 @@ self.addEventListener('notificationclick', function(event) {
     }
     
     const sessionId = event.notification.data.sessionId;
+    const senderId = event.notification.data.senderId;
     const urlToOpen = new URL(event.notification.data.url);
     
     // URLパラメータを追加
@@ -51,10 +52,12 @@ self.addEventListener('notificationclick', function(event) {
     if (sessionId) {
         urlToOpen.searchParams.append('sessionId', sessionId);
     }
-    
+    if (senderId) {
+        urlToOpen.searchParams.append('senderId', senderId)
+    }    
     // クライアント（ブラウザのタブ）を開く
     event.waitUntil(
-        clients.matchAll({ type: 'window' }).then(clientsArr => {
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientsArr => {
             // 既に同じページが開いているかチェック
             const hadWindowToFocus = clientsArr.some(windowClient => {
                 if (windowClient.url === urlToOpen.href) {
