@@ -675,21 +675,45 @@ function urlBase64ToUint8Array(base64String) {
 
 // 緊急コール発信
 async function makeEmergencyCall() {
+    log('緊急コールを開始...');
+    document.getElementById('callBtn').disabled = true;
+
+    // --- 診断ログの追加 ---
     try {
-        log('緊急コールを開始...');
-        document.getElementById('callBtn').disabled = true;
-        
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        log('利用可能なメディアデバイス:');
+        devices.forEach(device => {
+            log(`- ${device.kind}: ${device.label || 'label not available'} (ID: ${device.deviceId.substring(0,10)}...)`);
+        });
+        if (!devices.some(d => d.kind === 'videoinput')) log('警告: カメラが見つかりません。', 'warning');
+        if (!devices.some(d => d.kind === 'audioinput')) log('警告: マイクが見つかりません。', 'warning');
+    } catch (e) {
+        log(`デバイスリストの取得に失敗: ${e.message}`, 'error');
+    }
+    // --------------------
+
+    // --- 事前クリーンアップ処理の追加 ---
+    // 万が一、古いストリームが残っていた場合に停止させる
+    if (localStream) {
+        log('古いメディアストリームが残っているため、強制的に停止します。', 'warning');
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    // ---------------------------------
+
+    try {
         // セッションID生成
         sessionId = 'emergency_' + Date.now();
         log(`セッションID: ${sessionId}`);
         
         // メディア取得
+        log('カメラとマイクへのアクセスを要求します...');
         localStream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: true
         });
         
-        log('カメラ・マイクにアクセス成功');
+        log('✅ カメラ・マイクにアクセス成功');
         document.getElementById('senderLocalVideo').srcObject = localStream;
         document.getElementById('senderCallArea').classList.remove('hidden');
         
@@ -700,8 +724,10 @@ async function makeEmergencyCall() {
         log('受信者の接続を待機中...');
         
     } catch (error) {
-        log(`発信エラー: ${error.message}`, 'error');
-        document.getElementById('callBtn').disabled = false;
+        log(`発信エラー: ${error.name} - ${error.message}`, 'error');
+        // エラー発生時は確実にリソースを解放し、UIを元に戻す
+        endCall('sender'); 
+        alert(`カメラまたはマイクの取得に失敗しました。他のアプリで使用中でないか確認してください。\nエラー: ${error.name}`);
     }
 }
 
@@ -849,13 +875,17 @@ function toggleVideo(mode) {
 
 // 通話終了
 function endCall(mode) {
-    log('通話を終了します...');
+    log('通話を終了/クリーンアップ処理を開始します...');
 
     // 1. PeerJSの接続を閉じる
     if (currentCall) {
-        currentCall.close();
+        if (!currentCall.open) {
+            log('通話接続は既に閉じています。');
+        } else {
+            currentCall.close();
+            log('PeerJSの通話接続を閉じました。');
+        }
         currentCall = null;
-        log('PeerJSの通話接続を閉じました。');
     }
 
     // 2. ローカルのメディアストリーム（カメラ・マイク）を完全に停止
@@ -867,17 +897,22 @@ function endCall(mode) {
         log('ローカルのメディアストリームを停止しました。');
     }
 
-    // 3. ビデオ要素のソースをクリア（推奨）
-    const localVideoEl = document.getElementById(`${mode}LocalVideo`);
-    const remoteVideoEl = document.getElementById(`${mode}RemoteVideo`);
-    if (localVideoEl) localVideoEl.srcObject = null;
-    if (remoteVideoEl) remoteVideoEl.srcObject = null;
-    log('ビデオ要素をクリアしました。');
+    // 3. ビデオ要素のソースをクリア
+    // senderとreceiver両方の要素をクリア対象にする
+    ['sender', 'receiver'].forEach(role => {
+        const localVideoEl = document.getElementById(`${role}LocalVideo`);
+        const remoteVideoEl = document.getElementById(`${role}RemoteVideo`);
+        if (localVideoEl && localVideoEl.srcObject) localVideoEl.srcObject = null;
+        if (remoteVideoEl && remoteVideoEl.srcObject) remoteVideoEl.srcObject = null;
+    });
+    log('全てのビデオ要素をクリアしました。');
 
     // 4. UIをリセット
     if (mode === 'sender') {
         document.getElementById('senderCallArea').classList.add('hidden');
-        document.getElementById('callBtn').disabled = false;
+        // 発信ボタンを再度有効化
+        const callBtn = document.getElementById('callBtn');
+        if (callBtn) callBtn.disabled = false;
     } else {
         document.getElementById('receiverCallArea').classList.add('hidden');
         // 必要に応じて受信者側のUIもリセット
