@@ -389,8 +389,7 @@ function proceedToSetup() {
 
 // 発信者初期化
 async function initSender() {
-    config.re
-    ceiverId = document.getElementById('receiverId').value;
+    config.receiverId = document.getElementById('receiverId').value;
     config.serverUrl = document.getElementById('serverUrl').value;
     
     if (!config.receiverId || !config.serverUrl) {
@@ -775,7 +774,6 @@ function toggleVideo(mode) {
     }
 }
 
-// 通話終了
 // 通話終了
 function endCall(mode) {
     log('通話を終了します...');
