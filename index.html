@@ -194,57 +194,137 @@ label {
   margin-top: 8px;
 }
 
-/* --- ここから新しいスタイルを追加 --- */
+/* --- 新しいモバイル最適化ビデオ通話UI --- */
 
-/* 通話画面全体のコンテナ */
+/* 通話画面のメインコンテナ */
 .call-area {
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100vw;
     height: 100vh;
     background-color: #000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
-/* 相手の映像 (メイン画面・背景) */
+/* ビデオコンテンツ領域 */
+.video-content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 相手の映像 (メイン画面) */
 .remote-video {
-    position: absolute;
-    top: 0;
-    left: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover; /* アスペクト比を維持して全体に表示 */
-    z-index: 1;
+    object-fit: cover;
+    background-color: #222;
 }
 
-/* 自分の映像 (右下の小窓) */
+/* 自分の映像 (右上の小窓) */
 .local-video {
     position: absolute;
-    bottom: 100px; /* 操作ボタンと重ならないように少し上に配置 */
+    top: 20px;
     right: 20px;
-    width: 25%;
-    max-width: 160px;
-    border-radius: 8px;
-    border: 2px solid rgba(255, 255, 255, 0.7);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-    z-index: 3; /* 常に最前面 */
-    background-color: #222;
-    object-fit: cover; /* 縦長になるのを防ぐ */
+    width: 100px;
+    height: 75px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    object-fit: cover;
+    background-color: #333;
+    z-index: 10;
+    transition: opacity 0.3s ease;
 }
 
-/* 操作ボタンのコンテナ */
+/* 自分の映像がOFFの時 */
+.local-video.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* コントロールエリア（画面下部に固定） */
 .call-controls {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 90px;
+    background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.3));
     display: flex;
-    gap: 15px;
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.4);
-    border-radius: 50px;
-    z-index: 2; /* 相手の映像より手前、自分の映像より奥 */
+    justify-content: center;
+    align-items: center;
+    gap: 25px;
+    padding: 20px;
+    z-index: 20;
 }
-/* --- ここまで --- */
 
+/* 個別のコントロールボタン */
+.control-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* 通常のボタン（マイク、カメラ、自分映像ON/OFF） */
+.control-btn.normal {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+    backdrop-filter: blur(10px);
+}
+
+.control-btn.normal:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+/* OFF状態のボタン */
+.control-btn.off {
+    background-color: #dc3545;
+    color: white;
+}
+
+.control-btn.off:hover {
+    background-color: #c82333;
+    transform: scale(1.05);
+}
+
+/* 通話終了ボタン（赤色、大きめで目立つ） */
+.control-btn.end-call {
+    background-color: #dc3545;
+    color: white;
+    width: 64px;
+    height: 64px;
+    font-size: 26px;
+}
+
+.control-btn.end-call:hover {
+    background-color: #c82333;
+    transform: scale(1.1);
+}
+
+/* 状態表示用のテキスト */
+.status-info {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 15;
+}
 
 
     </style>
@@ -348,15 +428,23 @@ label {
 
                 <div id="senderCallArea" class="hidden">
                     <div class="video-container">
-                        <!-- 相手の映像 -->
-                        <video id="senderRemoteVideo" class="remote-video" autoplay playsinline></video>
-                        <!-- 自分の映像 -->
-                        <video id="senderLocalVideo" class="local-video" autoplay muted playsinline></video>
-                        <!-- 操作ボタン -->
-                        <div class="call-controls">
-                            <button class="btn btn-secondary" onclick="toggleMute('sender')">🎤</button>
-                            <button class="btn btn-danger" onclick="endCall('sender')">📞</button>
-                            <button class="btn btn-secondary" onclick="toggleVideo('sender')">📷</button>
+                        <div class="call-area">
+                            <!-- ステータス表示 -->
+                            <div class="status-info">通話中</div>
+                            
+                            <!-- ビデオコンテンツ -->
+                            <div class="video-content">
+                                <video id="senderRemoteVideo" class="remote-video" autoplay playsinline></video>
+                                <video id="senderLocalVideo" class="local-video" autoplay muted playsinline></video>
+                            </div>
+                            
+                            <!-- コントロールボタン -->
+                            <div class="call-controls">
+                                <button id="senderMicBtn" class="control-btn normal" onclick="toggleMute('sender')" title="マイク">🎤</button>
+                                <button id="senderCameraBtn" class="control-btn normal" onclick="toggleCamera('sender')" title="カメラ">📷</button>
+                                <button id="senderSelfViewBtn" class="control-btn normal" onclick="toggleSelfView('sender')" title="自分の映像">👁️</button>
+                                <button class="control-btn end-call" onclick="endCall('sender')" title="通話終了">📞</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -380,15 +468,23 @@ label {
 
                 <div id="receiverCallArea" class="hidden">
                     <div class="video-container">
-                        <!-- 相手の映像 -->
-                        <video id="receiverRemoteVideo" class="remote-video" autoplay playsinline></video>
-                        <!-- 自分の映像 -->
-                        <video id="receiverLocalVideo" class="local-video" autoplay muted playsinline></video>
-                        <!-- 操作ボタン -->
-                        <div class="call-controls">
-                            <button class="btn btn-secondary" onclick="toggleMute('receiver')">🎤</button>
-                            <button class="btn btn-danger" onclick="endCall('receiver')">📞</button>
-                            <button class="btn btn-secondary" onclick="toggleVideo('receiver')">📷</button>
+                        <div class="call-area">
+                            <!-- ステータス表示 -->
+                            <div class="status-info">通話中</div>
+                            
+                            <!-- ビデオコンテンツ -->
+                            <div class="video-content">
+                                <video id="receiverRemoteVideo" class="remote-video" autoplay playsinline></video>
+                                <video id="receiverLocalVideo" class="local-video" autoplay muted playsinline></video>
+                            </div>
+                            
+                            <!-- コントロールボタン -->
+                            <div class="call-controls">
+                                <button id="receiverMicBtn" class="control-btn normal" onclick="toggleMute('receiver')" title="マイク">🎤</button>
+                                <button id="receiverCameraBtn" class="control-btn normal" onclick="toggleCamera('receiver')" title="カメラ">📷</button>
+                                <button id="receiverSelfViewBtn" class="control-btn normal" onclick="toggleSelfView('receiver')" title="自分の映像">👁️</button>
+                                <button class="control-btn end-call" onclick="endCall('receiver')" title="通話終了">📞</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -957,21 +1053,71 @@ function answerIncomingCall(call) {
     });
 }
 
-// ミュート切り替え
+// マイクのミュート/アンミュート
 function toggleMute(mode) {
     if (localStream) {
-        const audioTrack = localStream.getAudioTracks()[0];
-        audioTrack.enabled = !audioTrack.enabled;
-        log(audioTrack.enabled ? 'マイクON' : 'マイクOFF');
+        const audioTracks = localStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+            const isEnabled = audioTracks[0].enabled;
+            audioTracks[0].enabled = !isEnabled;
+            
+            const btn = document.getElementById(mode + 'MicBtn');
+            if (!isEnabled) {
+                btn.classList.remove('off');
+                btn.classList.add('normal');
+                btn.textContent = '🎤';
+                log('マイクON');
+            } else {
+                btn.classList.remove('normal');
+                btn.classList.add('off');
+                btn.textContent = '🔇';
+                log('マイクOFF');
+            }
+        }
     }
 }
 
-// ビデオ切り替え
-function toggleVideo(mode) {
+// カメラのON/OFF
+function toggleCamera(mode) {
     if (localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        videoTrack.enabled = !videoTrack.enabled;
-        log(videoTrack.enabled ? 'カメラON' : 'カメラOFF');
+        const videoTracks = localStream.getVideoTracks();
+        if (videoTracks.length > 0) {
+            const isEnabled = videoTracks[0].enabled;
+            videoTracks[0].enabled = !isEnabled;
+            
+            const btn = document.getElementById(mode + 'CameraBtn');
+            if (!isEnabled) {
+                btn.classList.remove('off');
+                btn.classList.add('normal');
+                btn.textContent = '📷';
+                log('カメラON');
+            } else {
+                btn.classList.remove('normal');
+                btn.classList.add('off');
+                btn.textContent = '📵';
+                log('カメラOFF');
+            }
+        }
+    }
+}
+
+// 自分の映像表示のON/OFF
+function toggleSelfView(mode) {
+    const localVideo = document.getElementById(mode + 'LocalVideo');
+    const btn = document.getElementById(mode + 'SelfViewBtn');
+    
+    if (localVideo.classList.contains('hidden')) {
+        localVideo.classList.remove('hidden');
+        btn.classList.remove('off');
+        btn.classList.add('normal');
+        btn.textContent = '👁️';
+        log('自分の映像表示ON');
+    } else {
+        localVideo.classList.add('hidden');
+        btn.classList.remove('normal');
+        btn.classList.add('off');
+        btn.textContent = '🙈';
+        log('自分の映像表示OFF');
     }
 }
 
