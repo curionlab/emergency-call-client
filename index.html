@@ -240,6 +240,17 @@ video {
             </div>
         </div>
 
+        <!-- 新しいログイン画面 -->
+        <div id="loginScreen" class="hidden">
+            <div class="card">
+                <h2>📞 発信者ログイン</h2>
+                <p>発信を行うには、共有されたパスワードを入力してください。</p>
+                <label for="password">パスワード:</label>
+                <input type="password" id="password" placeholder="パスワード">
+                <button class="btn btn-primary" onclick="handleLogin()">ログイン</button>
+            </div>
+        </div>
+
         <!-- 発信者セットアップ -->
         <div id="senderSetup" class="hidden">
             <div class="card">
@@ -362,6 +373,7 @@ let currentCall = null;
 let localStream = null;
 let pushSubscription = null;
 let sessionId = null;
+let sessionToken = null; // 一時トークンを保持
 
 // ログ関数
 function log(msg, type = 'info') {
@@ -387,9 +399,45 @@ function proceedToSetup() {
     document.getElementById('setupScreen').classList.add('hidden');
     
     if (type === 'sender') {
-        document.getElementById('senderSetup').classList.remove('hidden');
+        // 発信者の場合は、まずログイン画面を表示
+        document.getElementById('loginScreen').classList.remove('hidden');
     } else {
         document.getElementById('receiverSetup').classList.remove('hidden');
+    }
+}
+
+// --- 新しいhandleLogin関数 ---
+async function handleLogin() {
+    const password = document.getElementById('password').value;
+    const serverUrl = document.getElementById('serverUrl').value || document.getElementById('receiverServerUrl').value;
+    
+    if (!password || !serverUrl) {
+        alert('パスワードとサーバーURLを入力してください。');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${serverUrl}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: password })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            log('ログイン成功');
+            sessionToken = result.token; // トークンを保存
+            
+            // ログイン画面を隠し、発信者セットアップ画面を表示
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('senderSetup').classList.remove('hidden');
+        } else {
+            throw new Error(result.error || 'ログインに失敗しました。');
+        }
+    } catch (error) {
+        log(`ログインエラー: ${error.message}`, 'error');
+        alert('ログインに失敗しました。パスワードを確認してください。');
     }
 }
 
@@ -733,12 +781,21 @@ async function makeEmergencyCall() {
 
 // プッシュ通知送信
 async function sendPushNotification() {
+    if (!sessionToken) {
+        alert('ログインセッションが無効です。再度ログインしてください。');
+        goBackToHome(); // 初期画面に戻す
+        return;
+    }
+    
     try {
         log('プッシュ通知を送信中...');
         
         const response = await fetch(`${config.serverUrl}/send-notification`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${sessionToken}` // --- トークンをヘッダーに追加 ---
+            },
             body: JSON.stringify({
                 receiverId: config.receiverId,
                 sessionId: sessionId,
