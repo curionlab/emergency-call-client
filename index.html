@@ -144,21 +144,6 @@ label {
   margin: 20px 0;
 }
 
-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.video-controls {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 12px;
-}
-
 .control-btn {
   width: 50px;
   height: 50px;
@@ -209,40 +194,57 @@ video {
   margin-top: 8px;
 }
 
-/* --- ビデオ画面の配置 --- */
+/* --- ここから新しいスタイルを追加 --- */
 
-.video-container {
+/* 通話画面全体のコンテナ */
+.call-area {
     position: relative;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     background-color: #000;
-    overflow: hidden; /* はみ出した部分を隠す */
 }
 
-/* 相手の映像 (メイン画面) */
-#senderRemoteVideo, #receiverRemoteVideo {
+/* 相手の映像 (メイン画面・背景) */
+.remote-video {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover; /* アスペクト比を維持して全体に表示 */
-    z-index: 1; /* 背面に配置 */
+    z-index: 1;
 }
 
 /* 自分の映像 (右下の小窓) */
-#senderLocalVideo, #receiverLocalVideo {
+.local-video {
+    position: absolute;
+    bottom: 100px; /* 操作ボタンと重ならないように少し上に配置 */
+    right: 20px;
+    width: 25%;
+    max-width: 160px;
+    border-radius: 8px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    z-index: 3; /* 常に最前面 */
+    background-color: #222;
+    object-fit: cover; /* 縦長になるのを防ぐ */
+}
+
+/* 操作ボタンのコンテナ */
+.call-controls {
     position: absolute;
     bottom: 20px;
-    right: 20px;
-    width: 25%; /* 画面幅の25% */
-    max-width: 160px; /* 最大幅を160pxに制限 */
-    border: 2px solid white;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    z-index: 2; /* 手前に配置 */
-    background-color: #333;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.4);
+    border-radius: 50px;
+    z-index: 2; /* 相手の映像より手前、自分の映像より奥 */
 }
+/* --- ここまで --- */
+
 
 
     </style>
@@ -346,14 +348,15 @@ video {
 
                 <div id="senderCallArea" class="hidden">
                     <div class="video-container">
-                        <div class="video-container">
-                            <video id="senderRemoteVideo" autoplay playsinline></video>
-                            <video id="senderLocalVideo" autoplay muted playsinline></video>
-                        </div>
-                        <div class="video-controls">
-                            <button class="control-btn" onclick="toggleMute('sender')">🎤</button>
-                            <button class="control-btn end" onclick="endCall('sender')">📞</button>
-                            <button class="control-btn" onclick="toggleVideo('sender')">📹</button>
+                        <!-- 相手の映像 -->
+                        <video id="senderRemoteVideo" class="remote-video" autoplay playsinline></video>
+                        <!-- 自分の映像 -->
+                        <video id="senderLocalVideo" class="local-video" autoplay muted playsinline></video>
+                        <!-- 操作ボタン -->
+                        <div class="call-controls">
+                            <button class="btn btn-secondary" onclick="toggleMute('sender')">🎤</button>
+                            <button class="btn btn-danger" onclick="endCall('sender')">📞</button>
+                            <button class="btn btn-secondary" onclick="toggleVideo('sender')">📷</button>
                         </div>
                     </div>
                 </div>
@@ -377,14 +380,15 @@ video {
 
                 <div id="receiverCallArea" class="hidden">
                     <div class="video-container">
-                        <div class="video-container">
-                            <video id="receiverRemoteVideo" autoplay playsinline></video>
-                            <video id="receiverLocalVideo" autoplay muted playsinline></video>
-                        </div>
-                        <div class="video-controls">
-                            <button class="control-btn" onclick="toggleMute('receiver')">🎤</button>
-                            <button class="control-btn end" onclick="endCall('receiver')">📞</button>
-                            <button class="control-btn" onclick="toggleVideo('receiver')">📹</button>
+                        <!-- 相手の映像 -->
+                        <video id="receiverRemoteVideo" class="remote-video" autoplay playsinline></video>
+                        <!-- 自分の映像 -->
+                        <video id="receiverLocalVideo" class="local-video" autoplay muted playsinline></video>
+                        <!-- 操作ボタン -->
+                        <div class="call-controls">
+                            <button class="btn btn-secondary" onclick="toggleMute('receiver')">🎤</button>
+                            <button class="btn btn-danger" onclick="endCall('receiver')">📞</button>
+                            <button class="btn btn-secondary" onclick="toggleVideo('receiver')">📷</button>
                         </div>
                     </div>
                 </div>
