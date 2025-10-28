@@ -208,6 +208,43 @@ video {
   word-break: break-all;
   margin-top: 8px;
 }
+
+/* --- ビデオ画面の配置 --- */
+
+.video-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    overflow: hidden; /* はみ出した部分を隠す */
+}
+
+/* 相手の映像 (メイン画面) */
+#senderRemoteVideo, #receiverRemoteVideo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* アスペクト比を維持して全体に表示 */
+    z-index: 1; /* 背面に配置 */
+}
+
+/* 自分の映像 (右下の小窓) */
+#senderLocalVideo, #receiverLocalVideo {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 25%; /* 画面幅の25% */
+    max-width: 160px; /* 最大幅を160pxに制限 */
+    border: 2px solid white;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2; /* 手前に配置 */
+    background-color: #333;
+}
+
+
     </style>
 </head>
 <body>
@@ -309,8 +346,10 @@ video {
 
                 <div id="senderCallArea" class="hidden">
                     <div class="video-container">
-                        <video id="senderLocalVideo" autoplay muted playsinline></video>
-                        <video id="senderRemoteVideo" autoplay playsinline style="position: absolute; top: 0; left: 0;"></video>
+                        <div class="video-container">
+                            <video id="senderRemoteVideo" autoplay playsinline></video>
+                            <video id="senderLocalVideo" autoplay muted playsinline></video>
+                        </div>
                         <div class="video-controls">
                             <button class="control-btn" onclick="toggleMute('sender')">🎤</button>
                             <button class="control-btn end" onclick="endCall('sender')">📞</button>
@@ -338,8 +377,10 @@ video {
 
                 <div id="receiverCallArea" class="hidden">
                     <div class="video-container">
-                        <video id="receiverRemoteVideo" autoplay playsinline></video>
-                        <video id="receiverLocalVideo" autoplay muted playsinline style="position: absolute; bottom: 20px; right: 20px; width: 150px; border: 2px solid white; border-radius: 8px;"></video>
+                        <div class="video-container">
+                            <video id="receiverRemoteVideo" autoplay playsinline></video>
+                            <video id="receiverLocalVideo" autoplay muted playsinline></video>
+                        </div>
                         <div class="video-controls">
                             <button class="control-btn" onclick="toggleMute('receiver')">🎤</button>
                             <button class="control-btn end" onclick="endCall('receiver')">📞</button>
