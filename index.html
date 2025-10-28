@@ -286,9 +286,12 @@ video {
         <!-- 発信者画面 -->
         <div id="senderScreen" class="hidden">
             <div class="card">
-                <h2>📞 発信者モード</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin-bottom: 0;">📞 発信者モード</h2>
+                    <button class="btn" style="width: auto; margin-top: 0;" onclick="goBackToHome()">ユーザー変更</button>
+                </div>
                 <div id="senderStatus" class="status status-warning">初期化中...</div>
-                
+
                 <button class="emergency-btn" id="callBtn" onclick="makeEmergencyCall()" disabled>
                     緊急<br>コール
                 </button>
@@ -310,7 +313,10 @@ video {
         <!-- 受信者画面 -->
         <div id="receiverScreen" class="hidden">
             <div class="card">
-                <h2>📱 受信者モード</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin-bottom: 0;">📱 受信者モード</h2>
+                    <button class="btn" style="width: auto; margin-top: 0;" onclick="goBackToHome()">ユーザー変更</button>
+                </div>
                 <div id="receiverStatus" class="status status-warning">初期化中...</div>
                 
                 <div id="subscriptionInfo" class="hidden">
@@ -880,6 +886,42 @@ function endCall(mode) {
     log('✅ 通話が正常に終了しました。');
 }
 
+function goBackToHome() {
+    log('初期画面に戻ります...');
+
+    // 1. 進行中の通話とメディアストリームを完全に終了させる
+    // userTypeが設定されていれば、対応するモードでendCallを呼ぶ
+    if (userType) {
+        endCall(userType);
+    }
+    
+    // 2. PeerJSオブジェクトが残っていれば破棄する
+    if (peer && !peer.destroyed) {
+        peer.destroy();
+        peer = null;
+        log('PeerJSオブジェクトを破棄しました。');
+    }
+
+    // 3. グローバル変数を初期状態にリセット
+    config = { receiverId: null, serverUrl: null, authCode: null };
+    sessionId = null;
+    pushSubscription = null;
+    // userTypeは最後にリセット
+    
+    // 4. UIを初期画面に戻す
+    document.getElementById('senderScreen').classList.add('hidden');
+    document.getElementById('receiverScreen').classList.add('hidden');
+    document.getElementById('senderSetup').classList.add('hidden');
+    document.getElementById('receiverSetup').classList.add('hidden');
+    document.getElementById('setupScreen').classList.remove('hidden');
+
+    // userTypeをリセット
+    userType = null;
+    document.getElementById('userType').value = '';
+
+    log('✅ 初期画面に戻りました。');
+}
+
 
 // ICEサーバー設定の取得フック（現状はSTUNのみ返却）
 async function getIceServers() {
@@ -941,13 +983,9 @@ window.addEventListener('load', async () => {
         } else {
             log('自動応答が必要ですが、保存された設定が見つかりません。セットアップからやり直してください。', 'error');
             alert('初期設定が完了していません。一度受信者として登録を完了してください。');
-            // 通常のセットアップフローへ
-            loadSavedConfig();
         }
-    } else {
-        // 通常起動時の処理
-        loadSavedConfig();
-    }
+    } 
+    // 通常起動時はloadSavedConfigによってUIが復元されているので、ユーザーの操作を待つ
 });
 
     </script>
