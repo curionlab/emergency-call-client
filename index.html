@@ -389,8 +389,8 @@ function proceedToSetup() {
 
 // 発信者初期化
 async function initSender() {
-    config.receiverId = document.getElementById('receiverId').value;
-    config.serverUrl = document.getElementById('serverUrl').value;
+    // UIから値を取得して保存
+    saveConfig();
     
     if (!config.receiverId || !config.serverUrl) {
         alert('すべての項目を入力してください');
@@ -472,9 +472,10 @@ async function initSender() {
 
 // 受信者初期化
 async function initReceiver() {
-    config.receiverId = document.getElementById('myReceiverId').value;
+    // UIから値を取得して保存
+    saveConfig();
+    // authCodeは一時的なものなので保存しない
     config.authCode = document.getElementById('authCode').value;
-    config.serverUrl = document.getElementById('receiverServerUrl').value;
     
     if (!config.receiverId || !config.authCode || !config.serverUrl) {
         alert('すべての項目を入力してください');
@@ -607,6 +608,53 @@ async function registerToServer(subscription) {
     }
 }
 
+// ---ここから追加---
+
+// 設定をlocalStorageに保存する
+function saveConfig() {
+    // 現在のUIフィールドから最新の値を取得してconfigオブジェクトを更新
+    // userTypeに応じて保存する内容を分ける
+    if (userType === 'sender') {
+        config.receiverId = document.getElementById('receiverId').value;
+        config.serverUrl = document.getElementById('serverUrl').value;
+    } else if (userType === 'receiver') {
+        config.receiverId = document.getElementById('myReceiverId').value;
+        config.serverUrl = document.getElementById('receiverServerUrl').value;
+    }
+    
+    // userTypeも保存対象に含める
+    const configToSave = {
+        userType: userType,
+        receiverId: config.receiverId,
+        serverUrl: config.serverUrl,
+    };
+
+    localStorage.setItem('emergencyCallConfig', JSON.stringify(configToSave));
+    log('設定を保存しました。');
+}
+
+// localStorageから設定を読み込む
+function loadSavedConfig() {
+    const savedConfig = localStorage.getItem('emergencyCallConfig');
+    if (savedConfig) {
+        const parsedConfig = JSON.parse(savedConfig);
+        config = { ...config, ...parsedConfig }; // グローバルconfigを更新
+        
+        // UIのフィールドにも値を反映させる
+        document.getElementById('userType').value = config.userType || '';
+        document.getElementById('receiverId').value = config.receiverId || '';
+        document.getElementById('myReceiverId').value = config.receiverId || '';
+        document.getElementById('serverUrl').value = config.serverUrl || '';
+        document.getElementById('receiverServerUrl').value = config.serverUrl || '';
+
+        log('保存済み設定を読み込みました。');
+        return true;
+    }
+    log('保存された設定はありません。');
+    return false;
+}
+
+
 // Base64変換
 function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -692,7 +740,7 @@ function checkAutoAnswer() {
 }
 
 // 自動応答
-async function autoAnswerCall(sessionId) {
+async function autoAnswerCall(sessionId, senderId) {
     try {
         log('自動応答を開始...');
         
@@ -707,37 +755,56 @@ async function autoAnswerCall(sessionId) {
         
         log('カメラ・マイクにアクセス成功');
         
-        // PeerJS接続（発信者に接続）
-        // 実際の実装では、sessionIdからsenderIdを取得
-        log('発信者に接続中...');
+        // PeerJS接続（引数で受け取ったsenderIdを使用）
+        log(`発信者(${senderId})に接続中...`);
         
-        // デモ用：実際はサーバーからsenderIdを取得
-        const senderId = 'sender_' + sessionId.split('_')[1];
-        
-        const iceServers = await getIceServers();
         const receiverPeer = new Peer('receiver_' + Date.now(), {
             host: '0.peerjs.com',
             secure: true,
             port: 443,
-            config: { iceServers }
+            // ICEサーバー設定も適用
+            config: { iceServers: await getIceServers() } 
         });
-
         
         receiverPeer.on('open', () => {
             log('PeerJS接続完了、発信者を呼び出し中...');
             const call = receiverPeer.call(senderId, localStream);
+            
+            if (!call) {
+                log('発信者への接続開始に失敗しました。', 'error');
+                return;
+            }
+
             currentCall = call;
             
             call.on('stream', (remoteStream) => {
-                log('発信者の映像を受信');
+                log('発信者の映像を受信しました');
                 document.getElementById('receiverRemoteVideo').srcObject = remoteStream;
+                document.getElementById('receiverStatus').textContent = '通話中';
+                document.getElementById('receiverStatus').className = 'status status-success';
             });
+
+            call.on('close', () => {
+                log('通話が終了しました。');
+                endCall('receiver');
+            });
+
+            call.on('error', (err) => {
+                log(`通話エラー: ${err.message}`, 'error');
+            });
+        });
+
+        receiverPeer.on('error', (err) => {
+            log(`受信者Peerエラー: ${err.message}`, 'error');
         });
         
     } catch (error) {
         log(`自動応答エラー: ${error.message}`, 'error');
+        document.getElementById('receiverStatus').textContent = '応答失敗';
+        document.getElementById('receiverStatus').className = 'status status-error';
     }
 }
+
 
 // 着信応答（発信者側）
 function answerIncomingCall(call) {
@@ -835,15 +902,54 @@ log('緊急コールシステムが読み込まれました');
 
 // ページ読み込み時にService Workerを登録する
 // これにより、PWAとしてホーム画面に追加される前にブラウザがプッシュ機能を認識できる
-window.addEventListener('load', () => {
+// ページ読み込み時のメイン処理
+window.addEventListener('load', async () => {
+    log('緊急コールシステムが起動しました。');
+
+    // まずService Workerを登録
     if ('serviceWorker' in navigator) {
-        registerServiceWorker().catch(err => {
+        await registerServiceWorker().catch(err => {
             log('初期Service Worker登録エラー: ' + err.message, 'error');
         });
     } else {
         log('Service Worker非対応ブラウザです', 'warning');
     }
+    
+    // URLパラメータをチェックして自動応答フローに入るか判断
+    const urlParams = new URLSearchParams(window.location.search);
+    const isAutoAnswer = urlParams.get('autoAnswer') === 'true';
+    const incomingSessionId = urlParams.get('sessionId');
+    const incomingSenderId = urlParams.get('senderId');
+
+    // 保存済み設定を読み込んでUIに反映
+    const hasSavedConfig = loadSavedConfig();
+
+    if (isAutoAnswer && incomingSessionId && incomingSenderId) {
+        log(`自動応答モードを検出: SessionID=${incomingSessionId}, SenderID=${incomingSenderId}`);
+        
+        if (hasSavedConfig) {           
+            // セットアップ画面を飛ばして受信者画面を表示
+            document.getElementById('setupScreen').classList.add('hidden');
+            document.getElementById('senderSetup').classList.add('hidden');
+            document.getElementById('receiverSetup').classList.add('hidden');
+            document.getElementById('receiverScreen').classList.remove('hidden');
+            document.getElementById('receiverStatus').textContent = '着信に応答中...';
+            document.getElementById('receiverStatus').className = 'status status-warning';
+         
+            // 少し遅延させてから自動応答を開始
+            setTimeout(() => autoAnswerCall(incomingSessionId, incomingSenderId), 500);
+        } else {
+            log('自動応答が必要ですが、保存された設定が見つかりません。セットアップからやり直してください。', 'error');
+            alert('初期設定が完了していません。一度受信者として登録を完了してください。');
+            // 通常のセットアップフローへ
+            loadSavedConfig();
+        }
+    } else {
+        // 通常起動時の処理
+        loadSavedConfig();
+    }
 });
+
     </script>
 </body>
 </html>
