@@ -655,8 +655,14 @@ async function initSender() {
         
         // 着信処理は変わりません
         peer.on('call', (call) => {
-            log('着信を受信（受信者が接続）');
-            answerIncomingCall(call);
+            // 自分のカメラ(localStream)が準備できている場合のみ応答する
+            if (localStream) {
+                log('着信を受信、応答します。');
+                answerIncomingCall(call, localStream);
+            } else {
+                log('着信を受信しましたが、ローカルストリームの準備ができていません。', 'warning');
+                // 準備ができていない場合は、着信を拒否（何もしない）
+            }
         });
     }
 
@@ -1021,6 +1027,8 @@ async function autoAnswerCall(sessionId, senderId) {
 
             call.on('error', (err) => {
                 log(`通話エラー: ${err.message}`, 'error');
+                // エラー発生時にも必ず通話を終了する
+                endCall('receiver');
             });
         });
 
@@ -1037,10 +1045,11 @@ async function autoAnswerCall(sessionId, senderId) {
 
 
 // 着信応答（発信者側）
-function answerIncomingCall(call) {
+function answerIncomingCall(call, stream) { // 引数にstreamを追加
+    log('着信に応答します...');
     currentCall = call;
     
-    call.answer(localStream);
+    call.answer(stream);
     
     call.on('stream', (remoteStream) => {
         log('受信者の映像を受信');
