@@ -655,14 +655,11 @@ async function initSender() {
         
         // 着信処理は変わりません
         peer.on('call', (call) => {
-            // 自分のカメラ(localStream)が準備できている場合のみ応答する
-            if (localStream) {
-                log('着信を受信、応答します。');
-                answerIncomingCall(call, localStream);
-            } else {
-                log('着信を受信しましたが、ローカルストリームの準備ができていません。', 'warning');
-                // 準備ができていない場合は、着信を拒否（何もしない）
-            }
+            // 条件分岐を削除し、常に着信に応答する
+            log('着信を受信、応答します。');
+            
+            // localStreamがnullの場合でも、そのまま渡すことで受信専用の接続が確立される
+            answerIncomingCall(call, localStream);
         });
     }
 
@@ -901,17 +898,37 @@ async function makeEmergencyCall() {
         sessionId = 'emergency_' + Date.now();
         log(`セッションID: ${sessionId}`);
         
-        // メディア取得
-        log('カメラとマイクへのアクセスを要求します...');
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-        });
-        
-        log('✅ カメラ・マイクにアクセス成功');
-        document.getElementById('senderLocalVideo').srcObject = localStream;
-        document.getElementById('senderCallArea').classList.remove('hidden');
-        
+
+        // メディア取得を柔軟に変更
+        log('カメラとマイクへのアクセスを試みます...');
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+            log('✅ カメラ・マイクにアクセス成功');
+        } catch (streamError) {
+            log(`メディアデバイスの取得に失敗: ${streamError.name} - ${streamError.message}`, 'warning');
+            log('音声のみでの接続を試みます...');
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: false,
+                    audio: true
+                });
+                log('✅ マイクのみアクセス成功');
+            } catch (audioError) {
+                log('マイクの取得にも失敗しました。視聴のみで接続します。', 'warning');
+                // この場合、localStreamはnullのまま
+                localStream = null;
+            }
+        }
+
+        // UIの更新 (localStreamが存在する場合のみ)
+        if (localStream) {
+            document.getElementById('senderLocalVideo').srcObject = localStream;
+        }
+        document.getElementById('senderCallArea').classList.remove('hidden');ument.getElementById('senderCallArea').classList.remove('hidden');
+            
         // プッシュ通知送信
         await sendPushNotification();
         
@@ -979,17 +996,36 @@ function checkAutoAnswer() {
 async function autoAnswerCall(sessionId, senderId) {
     try {
         log('自動応答を開始...');
-        
-        // メディア取得
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-        });
-        
-        document.getElementById('receiverLocalVideo').srcObject = localStream;
+
+        // メディア取得を柔軟に変更
+        log('カメラとマイクへのアクセスを試みます...');
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+            log('✅ カメラ・マイクにアクセス成功');
+        } catch (streamError) {
+            log(`メディアデバイスの取得に失敗: ${streamError.name} - ${streamError.message}`, 'warning');
+            log('音声のみでの接続を試みます...');
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: false,
+                    audio: true
+                });
+                log('✅ マイクのみアクセス成功');
+            } catch (audioError) {
+                log('マイクの取得にも失敗しました。視聴のみで接続します。', 'warning');
+                localStream = null;
+            }
+        }
+
+        // UIの更新
+        if (localStream) {
+            document.getElementById('receiverLocalVideo').srcObject = localStream;
+        }
         document.getElementById('receiverCallArea').classList.remove('hidden');
-        
-        log('カメラ・マイクにアクセス成功');
+
         
         // PeerJS接続（引数で受け取ったsenderIdを使用）
         log(`発信者(${senderId})に接続中...`);
