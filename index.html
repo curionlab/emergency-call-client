@@ -104,6 +104,15 @@ h3 { margin-bottom: 12px; font-size: 18px; }
 
 .emergency-btn:hover:not(:disabled) { transform: scale(1.05); }
 
+.emergency-btn:disabled {
+    /* 非アクティブ時のスタイル */
+    background: #a9a9a9; /* ダークグレー */
+    box-shadow: none;
+    cursor: not-allowed; /* 禁止カーソル */
+    transform: none !important; /* ホバーエフェクトを無効化 */
+    opacity: 0.7;
+}
+
 .status {
   padding: 8px 16px;
   border-radius: 20px;
@@ -862,15 +871,28 @@ const gate = {
 function updateCallGate() {
   const allOk = gate.swReady && gate.pushReady && gate.idReady && gate.serverReady;
   const btn = document.getElementById('callBtn');
-  const hint = document.getElementById('callGateHint');
+  const hint = document.getElementById('senderStatus'); // ヒントのIDを 'senderStatus' に変更
+
+  // デバッグ用のログ
+  console.log(`[Gate Check] All OK: ${allOk}`, gate);
+
   if (btn) {
+    // disabled属性を切り替えるだけ
     btn.disabled = !allOk;
-    btn.style.opacity = allOk ? '1' : '0.5';
-    btn.style.pointerEvents = allOk ? 'auto' : 'none';
-    btn.style.display = allOk ? 'inline-flex' : 'none'; // 完全に隠す場合
   }
+
   if (hint) {
-    hint.textContent = allOk ? '発信可能です' : '準備中…';
+    // 'senderStatus' のテキストとスタイルを更新
+    if (allOk) {
+      hint.textContent = '✅ 発信可能です';
+      hint.classList.remove('status-warning', 'status-error');
+      hint.classList.add('status-success');
+    } else {
+      const pending = Object.keys(gate).filter(k => !gate[k]);
+      hint.textContent = `準備中... (${pending.join(', ')})`;
+      hint.classList.remove('status-success', 'status-error');
+      hint.classList.add('status-warning');
+    }
   }
 }
 async function runStartupChecks() {
