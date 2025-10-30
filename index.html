@@ -525,6 +525,35 @@ let pushSubscription = null;
 let sessionId = null;
 let sessionToken = null; // 一時トークンを保持
 
+// --- トークン管理 ---
+let currentAccessToken = null;
+
+/**
+ * @warning **セキュリティリスクに関する警告**
+ * 以下の関数では、リフレッシュトークンを `localStorage` に保存しています。
+ * `localStorage` は、ページ上で動作する全てのJavaScriptからアクセス可能です。
+ * このため、もしこのサイトにXSS (クロスサイトスクリプティング) の脆弱性が存在した場合、
+ * 攻撃者がリフレッシュトークンを盗み出し、ユーザーになりすます可能性があります。
+ *
+ * 本番環境や高いセキュリティが求められるシステムでは、HttpOnly属性を持つCookieなど、
+ * JavaScriptからアクセスできない、より安全なストレージに保存することが推奨されます。
+ *
+ * この実装は、プロトタイピングや、信頼できるユーザーのみがアクセスする
+ * 管理された環境での利用を想定しています。
+ */
+function saveTokens(accessToken, refreshToken) {
+    currentAccessToken = accessToken;
+    if (refreshToken) {
+        localStorage.setItem('emergencyCallRefreshToken', refreshToken);
+    }
+}
+
+function clearTokens() {
+    currentAccessToken = null;
+    localStorage.removeItem('emergencyCallRefreshToken');
+}
+
+
 // ログ関数
 function log(msg, type = 'info') {
     const logBox = document.getElementById('logBox');
@@ -694,16 +723,32 @@ async function initReceiver() {
         return;
     }
     
-    document.getElementById('receiverSetup').classList.add('hidden');
-    document.getElementById('receiverScreen').classList.remove('hidden');
-    
     log('受信者モードを初期化中...');
     
-    // プッシュ通知購読
-    await subscribeToPush();
+    // 1. プッシュ通知を購読する
+    const subscription = await subscribeToPush();
     
-    // URLパラメータから自動応答チェック
-    checkAutoAnswer();
+    // 2. 購読に成功した場合のみ、サーバーに登録する
+    if (subscription) {
+        const registrationSuccess = await registerToServer(subscription);
+        
+        // 3. サーバー登録に成功した場合のみ、待機画面に移行する
+        if (registrationSuccess) {
+            document.getElementById('setupScreen').classList.add('hidden');
+            document.getElementById('receiverSetup').classList.add('hidden');
+            document.getElementById('receiverScreen').classList.remove('hidden');
+            
+            updateReceiverStatus('通知待機中'); // UIを更新
+            checkAutoAnswer(); // URLパラメータをチェック
+        } else {
+            // サーバー登録失敗時の処理（例：セットアップ画面に戻すなど）
+            log('サーバー登録に失敗したため、セットアップ画面に戻ります。', 'error');
+        }
+    } else {
+        // プッシュ購読失敗時の処理
+        log('プッシュ通知の購読に失敗しました。処理を中断します。', 'error');
+        alert('プッシュ通知の準備に失敗しました。ブラウザの設定やOSのバージョンを確認してください。');
+    }
 }
 
 // Service Worker登録
@@ -731,7 +776,7 @@ async function registerServiceWorker() {
 }
 
 
-// プッシュ通知購読
+// プッシュ通知を購読し、subscriptionオブジェクトを返す
 async function subscribeToPush() {
     try {
         log('プッシュ通知を購読中...');
@@ -772,15 +817,17 @@ async function subscribeToPush() {
         pushSubscription = subscription;
         log('プッシュ購読完了');
         
-        // サーバーに登録
-        await registerToServer(subscription);
+        // ★★★ サーバー登録は呼び出さず、subscriptionを返す ★★★
+        return subscription;
         
     } catch (error) {
         log(`プッシュ購読エラー: ${error.message}`, 'error');
+        // 失敗した場合はnullを返す
+        return null;
     }
 }
 
-// サーバーに購読情報を登録
+// サーバーに購読情報を登録し、トークンを保存する
 async function registerToServer(subscription) {
     try {
         log('サーバーに登録中...');
@@ -797,23 +844,27 @@ async function registerToServer(subscription) {
         
         const result = await response.json();
         
-        if (result.success) {
-            log('✅ サーバー登録成功', 'success');
-            document.getElementById('receiverStatus').textContent = '通知待機中';
-            document.getElementById('receiverStatus').className = 'status status-success';
+        if (result.success && result.accessToken && result.refreshToken) {
+            log('✅ サーバー登録成功、トークンを受信しました。', 'success');
             
-            document.getElementById('subscriptionInfo').classList.remove('hidden');
-            document.getElementById('subscriptionData').textContent = 
-                `受信者ID: ${config.receiverId}\n登録日時: ${new Date().toLocaleString('ja-JP')}`;
+            // ★★★ ここでトークンを保存する ★★★
+            saveTokens(result.accessToken, result.refreshToken);
+            
+            // 成功したことを呼び出し元に伝える
+            return true;
         } else {
-            throw new Error(result.error || '登録失敗');
+            // 失敗した場合はエラーを投げる
+            throw new Error(result.error || 'サーバーからの応答が不正です');
         }
         
     } catch (error) {
         log(`サーバー登録エラー: ${error.message}`, 'error');
-        alert('登録に失敗しました。認証コードを確認してください。');
+        alert('登録に失敗しました。認証コードやサーバーURLを確認してください。');
+        // 失敗したことを呼び出し元に伝える
+        return false;
     }
 }
+
 
 // ---ここから追加---
 
