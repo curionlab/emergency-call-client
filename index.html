@@ -852,6 +852,94 @@ function loadSavedConfig() {
     return false;
 }
 
+//　前提条件が満たされるまでボタンを不可視/非活性にする。条件成立と同時に有効化。
+const gate = {
+  swReady: false,
+  pushReady: false,
+  idReady: false,
+  serverReady: false
+};
+function updateCallGate() {
+  const allOk = gate.swReady && gate.pushReady && gate.idReady && gate.serverReady;
+  const btn = document.getElementById('callBtn');
+  const hint = document.getElementById('callGateHint');
+  if (btn) {
+    btn.disabled = !allOk;
+    btn.style.opacity = allOk ? '1' : '0.5';
+    btn.style.pointerEvents = allOk ? 'auto' : 'none';
+    btn.style.display = allOk ? 'inline-flex' : 'none'; // 完全に隠す場合
+  }
+  if (hint) {
+    hint.textContent = allOk ? '発信可能です' : '準備中…';
+  }
+}
+async function runStartupChecks() {
+  // 1) SW
+  try {
+    await navigator.serviceWorker.ready;
+    gate.swReady = true;
+  } catch { gate.swReady = false; }
+  updateCallGate();
+
+  // 2) Push購読
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription(); // 既存購読確認
+    if (!sub) {
+      // 購読実行（VAPID公開鍵は既存の方法で）
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidUint8Key });
+      // サーバーへ登録（receiverIdと紐付け）
+      await fetch(`${config.serverUrl}/register`, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ receiverId: config.receiverId, subscription: sub }) });
+    }
+    gate.pushReady = !!sub;
+  } catch {
+    gate.pushReady = false;
+  }
+  updateCallGate();
+
+  // 3) ID/URL
+  gate.idReady = !!(config.receiverId && config.receiverId.trim()) && !!(config.serverUrl && config.serverUrl.trim());
+  updateCallGate();
+
+  // 4) サーバー到達性
+  try {
+    const r = await fetch(`${config.serverUrl}/health`, { cache:'no-store' });
+    gate.serverReady = r.ok;
+  } catch {
+    gate.serverReady = false;
+  }
+  updateCallGate();
+
+  // 任意: 権限状態をUI表示のみ（ゲートには影響させない）
+  if (navigator.permissions) {
+    try {
+      const mic = await navigator.permissions.query({ name: 'microphone' });
+      const cam = await navigator.permissions.query({ name: 'camera' });
+      // mic.state / cam.state をUIに表示（granted / denied / prompt）
+    } catch {}
+  }
+}
+window.addEventListener('load', runStartupChecks);
+
+// 入力項目変化で即ゲート更新:
+document.getElementById('receiverId')?.addEventListener('input', e => {
+  config.receiverId = e.target.value; gate.idReady = !!config.receiverId.trim(); updateCallGate();
+});
+document.getElementById('serverUrl')?.addEventListener('input', e => {
+  config.serverUrl = e.target.value; gate.idReady = !!config.receiverId?.trim(); updateCallGate();
+});
+
+// 接続自己回復
+function attachPcStateWatch(pc) {
+  pc.addEventListener('iceconnectionstatechange', () => {
+    const s = pc.iceConnectionState; // new/checking/connected/completed/disconnected/failed/closed
+    if (s === 'disconnected' || s === 'failed') {
+      try { pc.restartIce(); } catch {}
+    }
+  });
+}
+
 
 // Base64変換
 function urlBase64ToUint8Array(base64String) {
@@ -1042,6 +1130,10 @@ async function autoAnswerCall(sessionId, senderId) {
             log('PeerJS接続完了、発信者を呼び出し中...');
             const call = receiverPeer.call(senderId, localStream);
             
+            // 生成直後にPCを監視
+            const pc = call?.peerConnection || call?._pc || call?._peerConnection;
+            if (pc) attachPcStateWatch(pc);
+
             if (!call) {
                 log('発信者への接続開始に失敗しました。', 'error');
                 return;
@@ -1086,6 +1178,10 @@ function answerIncomingCall(call, stream) { // 引数にstreamを追加
     currentCall = call;
     
     call.answer(stream);
+    
+    // ここで内部のPCを取得して監視を付与
+    const pc = call.peerConnection || call._pc || call._peerConnection;
+    if (pc) attachPcStateWatch(pc); // ← このタイミングがベスト
     
     call.on('stream', (remoteStream) => {
         log('受信者の映像を受信');
