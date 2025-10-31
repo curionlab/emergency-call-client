@@ -863,9 +863,15 @@ async function subscribeToPush() {
         const registration = await navigator.serviceWorker.ready;
 
         
-        // VAPIDキー（実際の実装ではサーバーから取得）
-        const vapidPublicKey = '__REDACTED_VAPID_PUBLIC_KEY__';
+        // ★★★ サーバーからVAPID公開鍵を取得 ★★★
+        const response = await fetch(`${config.serverUrl}/vapid-public-key`);
+        const data = await response.json();
+        const vapidPublicKey = data.publicKey;
         
+        if (!vapidPublicKey) {
+            throw new Error('サーバーからVAPID公開鍵を取得できませんでした。');
+        }
+
         const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
