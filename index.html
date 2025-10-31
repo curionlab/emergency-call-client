@@ -335,6 +335,50 @@ label {
     z-index: 15;
 }
 
+/* --- <style>タグの一番下に追加 --- */
+    .admin-tool-box {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+.admin-tool-box h4 {
+    margin-top: 0;
+}
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+.input-group input {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+}
+.input-group button {
+    padding: 8px 16px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.input-group button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+.result-box {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    font-family: monospace;
+    font-weight: bold;
+    min-height: 20px;
+}
+
 
     </style>
 </head>
@@ -396,6 +440,19 @@ label {
                 </div>
 
                 <button class="btn btn-primary" onclick="initSender()">発信者モード開始</button>
+
+                <!-- === ここから追加 === -->
+                <div class="admin-tool-box">
+                    <h4>受信者 招待ツール</h4>
+                    <p>新しい受信者を招待するための認証コードを発行します。</p>
+                    <div class="input-group">
+                        <input type="text" id="inviteReceiverId" placeholder="受信者ID (例: matz)">
+                        <button id="generateCodeBtn" onclick="generateAuthCode()">認証コード発行</button>
+                    </div>
+                    <div id="authCodeResult" class="result-box"></div>
+                </div>
+                <!-- === ここまで追加 === -->
+
             </div>
         </div>
 
@@ -1484,6 +1541,55 @@ window.addEventListener('load', async () => {
     } 
     // 通常起動時はloadSavedConfigによってUIが復元されているので、ユーザーの操作を待つ
 });
+
+// --- <script>タグの末尾に追加 ---
+
+    async function generateAuthCode() {
+    const receiverIdInput = document.getElementById('inviteReceiverId');
+    const btn = document.getElementById('generateCodeBtn');
+    const resultBox = document.getElementById('authCodeResult');
+    
+    const receiverId = receiverIdInput.value.trim();
+    if (!receiverId) {
+        alert('受信者IDを入力してください。');
+        return;
+    }
+
+    // API通信中はボタンを無効化
+    btn.disabled = true;
+    btn.textContent = '発行中...';
+    resultBox.textContent = '';
+
+    try {
+        const response = await fetch(`${config.serverUrl}/generate-auth-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ receiverId: receiverId })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.code) {
+            // 成功した場合
+            resultBox.textContent = `発行成功！ 認証コード: ${data.code}`;
+            resultBox.style.color = '#155724';
+            resultBox.style.backgroundColor = '#d4edda';
+        } else {
+            // 失敗した場合
+            throw new Error(data.error || '不明なエラーが発生しました');
+        }
+
+    } catch (error) {
+        resultBox.textContent = `エラー: ${error.message}`;
+        resultBox.style.color = '#721c24';
+        resultBox.style.backgroundColor = '#f8d7da';
+        console.error('認証コードの発行に失敗しました:', error);
+    } finally {
+        // 処理が完了したらボタンを元に戻す
+        btn.disabled = false;
+        btn.textContent = '認証コード発行';
+    }
+}
 
     </script>
 </body>
