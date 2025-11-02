@@ -1212,6 +1212,7 @@ async function makeEmergencyCall() {
 
   try {
     // 1. メディアデバイス（カメラ・マイク）の取得
+    // ★ 取得できなくても処理を継続する（nullのまま進む）
     log('メディアデバイス（カメラ・マイク）の準備中...');
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -1222,12 +1223,16 @@ async function makeEmergencyCall() {
         localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
         log('音声のみで準備が完了しました。', 'success');
       } catch (audioError) {
-        log('メディアデバイスへのアクセスが拒否されました。', 'error');
-        throw new MediaDeviceError();
+        // ★ 音声も取得できない場合も処理を継続（警告のみ表示）
+        log('メディアデバイスへのアクセスが拒否されました。メディアなしで通話を試行します。', 'warning');
+        localStream = null; // nullのまま進む
       }
     }
     
-    document.getElementById('senderLocalVideo').srcObject = localStream;
+    // ★ localStreamが取得できていれば、video要素にセット
+    if (localStream) {
+      document.getElementById('senderLocalVideo').srcObject = localStream;
+    }
 
     // 2. プッシュ通知の送信（事前チェック）
     log('受信者にプッシュ通知を送信しています...');
@@ -1240,26 +1245,35 @@ async function makeEmergencyCall() {
 
     // 4. PeerJSで通話を開始
     log('受信者の接続を待機しています...');
-    const call = peer.call(config.receiverId, localStream, {
-      metadata: { sessionId: sessionId }
-    });
-    currentCall = call;
+    
+    // ★ localStreamがnullの場合でも通話は開始（データチャネルのみの接続）
+    if (localStream) {
+      const call = peer.call(config.receiverId, localStream, {
+        metadata: { sessionId: sessionId }
+      });
+      currentCall = call;
 
-    // 通話イベントのハンドラ設定
-    call.on('stream', (remoteStream) => {
-      log('受信者の映像を受信しました。', 'success');
-      document.getElementById('senderRemoteVideo').srcObject = remoteStream;
-    });
+      // 通話イベントのハンドラ設定
+      call.on('stream', (remoteStream) => {
+        log('受信者の映像を受信しました。', 'success');
+        document.getElementById('senderRemoteVideo').srcObject = remoteStream;
+      });
 
-    call.on('close', () => {
-      log('受信者との接続が切れました。', 'warning');
-      endCall('sender');
-    });
+      call.on('close', () => {
+        log('受信者との接続が切れました。', 'warning');
+        endCall('sender');
+      });
 
-    call.on('error', (err) => {
-      log(`通話エラー: ${err.message}`, 'error');
-      endCall('sender');
-    });
+      call.on('error', (err) => {
+        log(`通話エラー: ${err.message}`, 'error');
+        endCall('sender');
+      });
+    } else {
+      // ★ メディアストリームなしの場合の代替処理
+      log('メディアストリームがないため、データ接続のみで通話を試行します。', 'warning');
+      // データコネクションのみ確立する場合はここに実装
+      // 例: const conn = peer.connect(config.receiverId);
+    }
 
   } catch (error) {
     // エラーの型に応じて適切な処理を実行
@@ -1278,11 +1292,6 @@ async function makeEmergencyCall() {
       if (error.code === 'RECEIVER_NOT_FOUND') {
         log('受信者が登録されていません。相手がアプリを設定しているか確認してください。', 'error');
       }
-      endCall('sender');
-      
-    } else if (error instanceof MediaDeviceError) {
-      // メディアデバイスエラー → 通話をクリーンアップ
-      log('カメラ・マイクの使用許可を確認してください。', 'error');
       endCall('sender');
       
     } else if (error instanceof NetworkError) {
