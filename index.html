@@ -1189,20 +1189,25 @@ async function sendPushNotification() {
                 sessionId: sessionId,
                 senderId: peer.id,
                 title: '🚨 緊急コール',
-                body: '緊急通話が開始されました。タップして応答してください。'
+                body: `発信者: ${config.senderId || '不明'}`,
             })
         });
         
         const result = await response.json();
-        
-        if (result.success) {
-            log('✅ プッシュ通知送信成功', 'success');
-        } else {
-            throw new Error(result.error || '通知送信失敗');
+        if (!response.ok || !result.success) { // ★ レスポンスのステータスと内容をチェック
+            throw new Error(result.error || '通知の送信に失敗しました。');
         }
+        log('プッシュ通知の送信に成功しました', 'success');
+        // 成功した場合のみ、後続の処理（PeerJS待機など）に進む
+        log('受信者の接続を待機中...');
         
     } catch (error) {
         log(`通知送信エラー: ${error.message}`, 'error');
+        // ★ ユーザーにエラーを明確に通知し、通話を中断する
+        alert(`呼び出しに失敗しました: ${error.message}\n受信者のIDが正しいか、相手が通知を許可しているか確認してください。`);
+        endCall('sender'); // 通話画面を閉じて前の画面に戻る
+        // ★ 以降の処理を中断するためにエラーを再throwするか、ここで処理を終える
+        throw error; // makeEmergencyCallのcatchブロックで後続処理を停止させる
     }
 }
 
