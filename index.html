@@ -1089,126 +1089,217 @@ function urlBase64ToUint8Array(base64String) {
     return outputArray;
 }
 
-// 緊急コール発信
-async function makeEmergencyCall() {
-    log('緊急コールを開始...');
-    document.getElementById('callBtn').disabled = true;
+// ========================================
+// カスタムエラークラスの定義（型 + コード併用）
+// ========================================
 
-    // --- 診断ログの追加 ---
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        log('利用可能なメディアデバイス:');
-        devices.forEach(device => {
-            log(`- ${device.kind}: ${device.label || 'label not available'} (ID: ${device.deviceId.substring(0,10)}...)`);
-        });
-        if (!devices.some(d => d.kind === 'videoinput')) log('警告: カメラが見つかりません。', 'warning');
-        if (!devices.some(d => d.kind === 'audioinput')) log('警告: マイクが見つかりません。', 'warning');
-    } catch (e) {
-        log(`デバイスリストの取得に失敗: ${e.message}`, 'error');
-    }
-    // --------------------
-
-    // --- 事前クリーンアップ処理の追加 ---
-    // 万が一、古いストリームが残っていた場合に停止させる
-    if (localStream) {
-        log('古いメディアストリームが残っているため、強制的に停止します。', 'warning');
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-    }
-    // ---------------------------------
-
-    try {
-        // セッションID生成
-        sessionId = 'emergency_' + Date.now();
-        log(`セッションID: ${sessionId}`);
-        
-
-        // メディア取得を柔軟に変更
-        log('カメラとマイクへのアクセスを試みます...');
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
-            log('✅ カメラ・マイクにアクセス成功');
-        } catch (streamError) {
-            log(`メディアデバイスの取得に失敗: ${streamError.name} - ${streamError.message}`, 'warning');
-            log('音声のみでの接続を試みます...');
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: false,
-                    audio: true
-                });
-                log('✅ マイクのみアクセス成功');
-            } catch (audioError) {
-                log('マイクの取得にも失敗しました。視聴のみで接続します。', 'warning');
-                // この場合、localStreamはnullのまま
-                localStream = null;
-            }
-        }
-
-        // UIの更新 (localStreamが存在する場合のみ)
-        if (localStream) {
-            document.getElementById('senderLocalVideo').srcObject = localStream;
-        }
-        document.getElementById('senderCallArea').classList.remove('hidden');
-            
-        // プッシュ通知送信
-        await sendPushNotification();
-        
-        // PeerJS通話待機（受信者からの接続を待つ）
-        log('受信者の接続を待機中...');
-        
-    } catch (error) {
-        log(`発信エラー: ${error.name} - ${error.message}`, 'error');
-        // エラー発生時は確実にリソースを解放し、UIを元に戻す
-        endCall('sender'); 
-        alert(`カメラまたはマイクの取得に失敗しました。他のアプリで使用中でないか確認してください。\nエラー: ${error.name}`);
-    }
+/**
+ * アプリケーション基底エラー
+ * すべてのカスタムエラーはこれを継承します。
+ */
+ class AppError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.name = this.constructor.name;
+    this.code = code; // エラーコードも保持（ログやAPI連携で使用）
+  }
 }
 
-// プッシュ通知送信
+/**
+ * 認証エラー（ログインセッション無効など）
+ */
+class AuthenticationError extends AppError {
+  constructor(message = 'ログインセッションが無効です。再度ログインしてください。') {
+    super(message, 'AUTH_ERROR');
+  }
+}
+
+/**
+ * 通知送信エラー（受信者未登録、サーバーエラーなど）
+ */
+class NotificationError extends AppError {
+  constructor(message, code = 'NOTIFICATION_ERROR') {
+    super(message, code);
+  }
+}
+
+/**
+ * メディアデバイスエラー（カメラ・マイクへのアクセス失敗）
+ */
+class MediaDeviceError extends AppError {
+  constructor(message = 'メディアデバイスへのアクセスが拒否されました。') {
+    super(message, 'MEDIA_DEVICE_ERROR');
+  }
+}
+
+/**
+ * ネットワークエラー（通信失敗）
+ */
+class NetworkError extends AppError {
+  constructor(message = 'ネットワーク接続に失敗しました。') {
+    super(message, 'NETWORK_ERROR');
+  }
+}
+
+// ========================================
+// sendPushNotification (修正版)
+// ========================================
 async function sendPushNotification() {
-    if (!sessionToken) {
-        alert('ログインセッションが無効です。再度ログインしてください。');
-        goBackToHome(); // 初期画面に戻す
-        return;
+  if (!sessionToken) {
+    log('認証エラー: ログインセッションがありません', 'error');
+    throw new AuthenticationError();
+  }
+
+  try {
+    const response = await fetch(`${config.serverUrl}/send-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({
+        receiverId: config.receiverId,
+        sessionId: sessionId,
+        senderId: peer.id,
+        title: '緊急コール',
+        body: `発信者: ${config.senderId || '不明'}`
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (!response.ok || !result.success) {
+      // サーバーからのエラーを適切なエラー型に変換
+      const errorMessage = result.error || 'サーバーが通知の送信に失敗しました。';
+      
+      // HTTPステータスコードに応じて適切なエラーを投げる
+      if (response.status === 401 || response.status === 403) {
+        throw new AuthenticationError(errorMessage);
+      } else if (response.status === 404) {
+        throw new NotificationError('受信者が登録されていません', 'RECEIVER_NOT_FOUND');
+      } else {
+        throw new NotificationError(errorMessage);
+      }
+    }
+
+    log('プッシュ通知の送信に成功しました', 'success');
+
+  } catch (error) {
+    // AppErrorの派生型はそのまま再throw
+    if (error instanceof AppError) {
+      throw error;
     }
     
-    try {
-        log('プッシュ通知を送信中...');
-        
-        const response = await fetch(`${config.serverUrl}/send-notification`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${sessionToken}` // --- トークンをヘッダーに追加 ---
-            },
-            body: JSON.stringify({
-                receiverId: config.receiverId,
-                sessionId: sessionId,
-                senderId: peer.id,
-                title: '🚨 緊急コール',
-                body: `発信者: ${config.senderId || '不明'}`,
-            })
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success) { // ★ レスポンスのステータスと内容をチェック
-            throw new Error(result.error || '通知の送信に失敗しました。');
-        }
-        log('プッシュ通知の送信に成功しました', 'success');
-        // 成功した場合のみ、後続の処理（PeerJS待機など）に進む
-        log('受信者の接続を待機中...');
-        
-    } catch (error) {
-        log(`通知送信エラー: ${error.message}`, 'error');
-        // ★ ユーザーにエラーを明確に通知し、通話を中断する
-        alert(`呼び出しに失敗しました: ${error.message}\n受信者のIDが正しいか、相手が通知を許可しているか確認してください。`);
-        endCall('sender'); // 通話画面を閉じて前の画面に戻る
-        // ★ 以降の処理を中断するためにエラーを再throwするか、ここで処理を終える
-        throw error; // makeEmergencyCallのcatchブロックで後続処理を停止させる
+    // fetch自体のネットワークエラー（サーバーに到達できないなど）
+    if (error instanceof TypeError || error.name === 'NetworkError') {
+      log('ネットワークエラー: サーバーに接続できません', 'error');
+      throw new NetworkError('サーバーへの接続に失敗しました。ネットワーク環境を確認してください。');
     }
+    
+    // その他の予期しないエラー
+    log(`予期しないエラー: ${error.message}`, 'error');
+    throw new NotificationError(`通知送信中にエラーが発生しました: ${error.message}`);
+  }
+}
+
+// ========================================
+// makeEmergencyCall (修正版)
+// ========================================
+async function makeEmergencyCall() {
+  log('発信処理を開始しています...');
+  const callBtn = document.getElementById('callBtn');
+  callBtn.disabled = true;
+
+  try {
+    // 1. メディアデバイス（カメラ・マイク）の取得
+    log('メディアデバイス（カメラ・マイク）の準備中...');
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      log('カメラとマイクの準備が完了しました。', 'success');
+    } catch (streamError) {
+      log('カメラの取得に失敗しました。音声のみで試行します...', 'warning');
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        log('音声のみで準備が完了しました。', 'success');
+      } catch (audioError) {
+        log('メディアデバイスへのアクセスが拒否されました。', 'error');
+        throw new MediaDeviceError();
+      }
+    }
+    
+    document.getElementById('senderLocalVideo').srcObject = localStream;
+
+    // 2. プッシュ通知の送信（事前チェック）
+    log('受信者にプッシュ通知を送信しています...');
+    sessionId = `emergency-${Date.now()}`;
+    await sendPushNotification(); // ここで失敗すると例外が投げられる
+
+    // 3. UI切替（全ての事前チェックが成功した場合のみ実行される）
+    log('通話画面に切り替えます...');
+    document.getElementById('senderCallArea').classList.remove('hidden');
+
+    // 4. PeerJSで通話を開始
+    log('受信者の接続を待機しています...');
+    const call = peer.call(config.receiverId, localStream, {
+      metadata: { sessionId: sessionId }
+    });
+    currentCall = call;
+
+    // 通話イベントのハンドラ設定
+    call.on('stream', (remoteStream) => {
+      log('受信者の映像を受信しました。', 'success');
+      document.getElementById('senderRemoteVideo').srcObject = remoteStream;
+    });
+
+    call.on('close', () => {
+      log('受信者との接続が切れました。', 'warning');
+      endCall('sender');
+    });
+
+    call.on('error', (err) => {
+      log(`通話エラー: ${err.message}`, 'error');
+      endCall('sender');
+    });
+
+  } catch (error) {
+    // エラーの型に応じて適切な処理を実行
+    
+    // ログに詳細情報を出力（エラーコードも含む）
+    const errorCode = error.code ? ` (${error.code})` : '';
+    log(`発信に失敗しました: ${error.message}${errorCode}`, 'error');
+    
+    if (error instanceof AuthenticationError) {
+      // 認証エラー → 初期画面に戻す
+      log('認証エラーのため、初期画面に戻ります。', 'warning');
+      goBackToHome();
+      
+    } else if (error instanceof NotificationError) {
+      // 通知送信エラー → 通話をクリーンアップ
+      if (error.code === 'RECEIVER_NOT_FOUND') {
+        log('受信者が登録されていません。相手がアプリを設定しているか確認してください。', 'error');
+      }
+      endCall('sender');
+      
+    } else if (error instanceof MediaDeviceError) {
+      // メディアデバイスエラー → 通話をクリーンアップ
+      log('カメラ・マイクの使用許可を確認してください。', 'error');
+      endCall('sender');
+      
+    } else if (error instanceof NetworkError) {
+      // ネットワークエラー → 通話をクリーンアップ
+      log('ネットワーク接続を確認してください。', 'error');
+      endCall('sender');
+      
+    } else {
+      // 予期しないエラー → 念のためクリーンアップ
+      log('予期しないエラーが発生しました。', 'error');
+      endCall('sender');
+    }
+    
+  } finally {
+    // 最終的にボタンを再度有効化
+    callBtn.disabled = false;
+  }
 }
 
 // 自動応答チェック
