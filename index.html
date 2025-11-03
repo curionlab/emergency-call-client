@@ -1655,46 +1655,64 @@ window.addEventListener('load', async () => {
 
 // --- <script>タグの末尾に追加 ---
 
-    async function generateAuthCode() {
+async function generateAuthCode() {
     const receiverIdInput = document.getElementById('inviteReceiverId');
     const btn = document.getElementById('generateCodeBtn');
     const resultBox = document.getElementById('authCodeResult');
     
     const receiverId = receiverIdInput.value.trim();
+    // ★ サーバーURLを直接取得（configに依存しない）
+    const serverUrl = document.getElementById('serverUrl').value.trim();
+
     if (!receiverId) {
         alert('受信者IDを入力してください。');
         return;
     }
 
+    if (!serverUrl) {
+        alert('サーバーURLが設定されていません。先に発信者として設定を完了してください。');
+        return;
+    }
     // API通信中はボタンを無効化
     btn.disabled = true;
     btn.textContent = '発行中...';
     resultBox.textContent = '';
 
     try {
-        const response = await fetch(`${config.serverUrl}/generate-auth-code`, {
+        const response = await fetch(`${serverUrl}/generate-auth-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ receiverId: receiverId })
         });
 
-        const data = await response.json();
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('サーバーから無効なレスポンスが返されました。');
+        }
+
+        const text = await response.text();
+        if (!text || text.trim() === '') {
+          throw new Error('サーバーからの応答が空でした。');
+        }
+
+        const data = JSON.parse(text);
 
         if (response.ok && data.code) {
-            // 成功した場合
-            resultBox.textContent = `発行成功！ 認証コード: ${data.code}`;
+            resultBox.textContent = `認証コード: ${data.code}`;
             resultBox.style.color = '#155724';
             resultBox.style.backgroundColor = '#d4edda';
+            log(`受信者 ${receiverId} の認証コードを発行しました: ${data.code}`, 'success');
         } else {
-            // 失敗した場合
-            throw new Error(data.error || '不明なエラーが発生しました');
+           throw new Error(data.error || 'コードの生成に失敗しました。');
         }
 
     } catch (error) {
         resultBox.textContent = `エラー: ${error.message}`;
         resultBox.style.color = '#721c24';
         resultBox.style.backgroundColor = '#f8d7da';
-        console.error('認証コードの発行に失敗しました:', error);
+        log(`認証コード生成エラー: ${error.message}`, 'error');
+        console.error('認証コード生成エラー:', error);
+
     } finally {
         // 処理が完了したらボタンを元に戻す
         btn.disabled = false;
