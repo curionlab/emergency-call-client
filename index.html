@@ -432,7 +432,7 @@ label {
                 <input type="text" id="receiverId" placeholder="例: parent_A">
 
                 <label>サーバーURL（通知送信用）:</label>
-                <input type="text" id="serverUrl" placeholder="https://your-server.onrender.com" value="__your-server-url__">
+                <input type="text" id="serverUrl" placeholder="https://your-emergency-call-server.com">
 
                 <div class="info-box" style="margin-top: 20px;">
                     <strong>💡 ヒント</strong>
@@ -468,7 +468,7 @@ label {
                 <input type="text" id="authCode" placeholder="例: 582937" maxlength="6">
 
                 <label>サーバーURL:</label>
-                <input type="text" id="receiverServerUrl" placeholder="https://your-server.onrender.com" value="__your-server-url__">
+                <input type="text" id="receiverServerUrl" placeholder="https://your-emergency-call-server.com">
 
                 <div class="info-box" style="margin-top: 20px;">
                     <strong>🔒 セキュリティ</strong>
@@ -563,6 +563,8 @@ label {
             <div class="log-box" id="logBox"></div>
         </div>
     </div>
+
+    <script src="./config.js"></script>
 
     <!-- PeerJS -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -1719,6 +1721,31 @@ async function generateAuthCode() {
         btn.textContent = '認証コード発行';
     }
 }
+
+function getDefaultServerUrlFromConfig() {
+  const v = window.__APP_CONFIG__?.API_BASE_URL;
+  return (typeof v === "string" && v.trim()) ? v.replace(/\/$/, "") : "";
+}
+
+function applyDefaultServerUrls() {
+  const def = getDefaultServerUrlFromConfig();
+  if (!def) return;
+
+  const senderEl = document.getElementById("serverUrl");
+  const receiverEl = document.getElementById("receiverServerUrl");
+
+  // 既に値がある（=保存済み/手入力/他処理）なら上書きしない
+  if (senderEl && !senderEl.value.trim()) senderEl.value = def;
+  if (receiverEl && !receiverEl.value.trim()) receiverEl.value = def;
+}
+
+// 既存の window load の処理があるので、その中で呼ぶか、追加で呼ぶ
+window.addEventListener("load", () => {
+  applyDefaultServerUrls();
+});
+
+
+
 
     </script>
 </body>
