@@ -78,6 +78,23 @@ If you want notifications to reliably reach an iPhone on mobile network (outside
 
 ---
 
+## WebRTC Connection Notes (Mobile Networks)
+
+### IPv6 Connection Recommended for Mobile Networks
+
+On mobile networks with IPv4-only connections, Carrier-Grade NAT (CGNAT) may prevent call establishment.
+
+**How to Check**  
+Access https://test-ipv6.com/ on the receiver's smartphone and verify that "IPv6 connectivity: Yes" is displayed.
+
+**If IPv4-only**  
+- Y!mobile users: Use IPv6-enabled APN profile (see [documentation](https://github.com/curionlab/emergency-call-docs))
+- Other carriers: IPv6 is typically auto-enabled (no additional configuration needed)
+
+For details, refer to "Troubleshooting" in [emergency-call-docs](https://github.com/curionlab/emergency-call-docs).
+
+---
+
 ## Configuration (Backend Server URL)
 
 This client requires configuration of "which server to connect to."

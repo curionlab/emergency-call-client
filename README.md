@@ -79,6 +79,23 @@ iPhoneがモバイル回線など「LAN外」にいる状態でも確実に通�
 
 ---
 
+## WebRTC接続の注意（モバイル回線）
+
+### モバイル回線ではIPv6接続を推奨
+
+モバイル回線のIPv4接続では、キャリアグレードNAT（CGNAT）により通話が確立できない場合があります。
+
+**確認方法**  
+受信者のスマートフォンで https://test-ipv6.com/ にアクセスし、「IPv6接続性: あり」と表示されることを確認してください。
+
+**IPv4のみの場合の対処**  
+- Y!mobileユーザー：APN設定でIPv6対応プロファイルを使用（詳細は[ドキュメント](https://github.com/curionlab/emergency-call-docs)参照）
+- 他キャリア：通常はIPv6自動適用（追加設定不要）
+
+詳細は [emergency-call-docs](https://github.com/curionlab/emergency-call-docs) の「トラブルシューティング」を参照してください。
+
+---
+
 ## 設定（backend server URL）
 
 このクライアントは「どのserverへ接続するか」を設定して使います。
