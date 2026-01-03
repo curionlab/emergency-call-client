@@ -874,6 +874,16 @@ async function subscribeToPush() {
             throw new Error('サーバーからVAPID公開鍵を取得できませんでした。');
         }
 
+        // --- 追加: SWに設定を送信 ---
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.active?.postMessage({
+            type: 'SW_CONFIG',
+            serverUrl: config.serverUrl,
+            vapidPublicKey,
+            receiverId: config.receiverId,
+          });
+        });
+
         const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
@@ -914,6 +924,15 @@ async function registerToServer(subscription) {
             
             // ★★★ ここでトークンを保存する ★★★
             saveTokens(result.accessToken, result.refreshToken);
+   
+            // --- 追加: SWに認証情報を送信 ---
+            navigator.serviceWorker.ready.then((reg) => {
+              reg.active?.postMessage({
+                type: 'SW_AUTH',
+                refreshToken: result.refreshToken,
+              });
+            });
+            // ---------------------------
             
             // 成功したことを呼び出し元に伝える
             return true;
